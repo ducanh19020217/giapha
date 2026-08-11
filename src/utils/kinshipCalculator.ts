@@ -10,7 +10,7 @@ import { DetailedMember } from '../types/member';
  *    - Dựa vào chênh lệch thế hệ: 1 (Chú/Bác/Cô/Dì/Cậu), 2 (Ông/Bà), 3 (Cụ), 4 (Kỵ).
  *    - Xác định Nội/Ngoại dựa vào đường đi từ A lên tổ tiên chung.
  */
-export const calculateKinship = (
+export const calculateCoreKinship = (
   personA: DetailedMember,
   personB: DetailedMember,
   allMembers: DetailedMember[]
@@ -146,4 +146,89 @@ export const calculateKinship = (
   }
 
   return 'Họ hàng';
+};
+
+export const calculateKinship = (
+  personA: DetailedMember,
+  personB: DetailedMember,
+  allMembers: DetailedMember[]
+): string => {
+  if (personA.id === personB.id) return 'Bản thân';
+
+  // Check direct spouse relation first
+  if (personA.spouses?.some(s => s.id === personB.id) || personB.spouses?.some(s => s.id === personA.id)) {
+    return personB.gender === 'male' ? 'Chồng' : 'Vợ';
+  }
+
+  // Find if personA or personB are spouses of a blood member
+  const partnerA = allMembers.find(m => m.spouses?.some(s => s.id === personA.id));
+  const partnerB = allMembers.find(m => m.spouses?.some(s => s.id === personB.id));
+
+  const effA = partnerA || personA;
+  const effB = partnerB || personB;
+
+  if (effA.id === effB.id) {
+    if (personA.gender === personB.gender) return personA.gender === 'female' ? 'Chị em dâu (cùng chồng)' : 'Anh em cọc chèo (cùng vợ)';
+    return 'Vợ chồng';
+  }
+
+  // Calculate the core relationship between the blood members
+  let coreRelation = calculateCoreKinship(effA, effB, allMembers);
+
+  // If both are blood members, return exactly what was calculated
+  if (!partnerA && !partnerB) return coreRelation;
+
+  // Helper to adjust the term if B is a spouse
+  const adjustForSpouseB = (relation: string, b: DetailedMember) => {
+    if (relation === 'Anh' && b.gender === 'female') return 'Chị dâu';
+    if (relation === 'Anh' && b.gender === 'male') return 'Anh rể';
+    if (relation.startsWith('Em ') && b.gender === 'female') return 'Em dâu';
+    if (relation.startsWith('Em ') && b.gender === 'male') return 'Em rể';
+    if (relation === 'Chú' && b.gender === 'female') return 'Thím';
+    if (relation === 'Cậu' && b.gender === 'female') return 'Mợ';
+    if ((relation === 'Cô' || relation === 'Dì') && b.gender === 'male') return 'Dượng';
+    if (relation === 'Bác trai' && b.gender === 'female') return 'Bác gái';
+    if (relation === 'Bác gái' && b.gender === 'male') return 'Bác trai';
+    if (relation.includes('Ông')) return relation.replace('Ông', 'Bà');
+    if (relation.includes('Bà')) return relation.replace('Bà', 'Ông');
+    if (relation.includes('Cụ Ông')) return 'Cụ Bà';
+    if (relation.includes('Cụ Bà')) return 'Cụ Ông';
+    if (relation.startsWith('Con ') && b.gender === 'female') return 'Con dâu';
+    if (relation.startsWith('Con ') && b.gender === 'male') return 'Con rể';
+    if (relation.startsWith('Cháu ') && b.gender === 'female') return 'Cháu dâu';
+    if (relation.startsWith('Cháu ') && b.gender === 'male') return 'Cháu rể';
+    if (relation.startsWith('Chắt ') && b.gender === 'female') return 'Chắt dâu';
+    if (relation.startsWith('Chắt ') && b.gender === 'male') return 'Chắt rể';
+    return `${b.gender === 'male' ? 'Người nam' : 'Người nữ'} (vợ/chồng của ${relation})`;
+  };
+
+  if (partnerA && partnerB) {
+    if (effA.generation === effB.generation) {
+      if (coreRelation === 'Anh' || coreRelation === 'Chị') return personB.gender === 'male' ? 'Anh cọc chèo' : 'Chị dâu';
+      if (coreRelation.startsWith('Em ')) return personB.gender === 'male' ? 'Em cọc chèo' : 'Em dâu';
+    }
+    // Cross-generation: Mother-in-law calling Daughter-in-law is the same as Father calling Daughter-in-law
+    return adjustForSpouseB(coreRelation, personB);
+  }
+
+  if (!partnerA && partnerB) {
+    return adjustForSpouseB(coreRelation, personB);
+  }
+
+  if (partnerA && !partnerB) {
+    const side = effA.gender === 'male' ? 'chồng' : 'vợ';
+    if (coreRelation === 'Em gái' && side === 'chồng') return 'Cô (em chồng)';
+    if (coreRelation === 'Em trai' && side === 'chồng') return 'Chú (em chồng)';
+    if (coreRelation === 'Em gái' && side === 'vợ') return 'Dì (em vợ)';
+    if (coreRelation === 'Em trai' && side === 'vợ') return 'Cậu (em vợ)';
+    if (coreRelation === 'Anh') return 'Anh ' + side;
+    if (coreRelation === 'Chị') return 'Chị ' + side;
+    // Don't add suffix for direct descendants
+    if (coreRelation.startsWith('Con ') || coreRelation.startsWith('Cháu ') || coreRelation.startsWith('Chắt ')) {
+      return coreRelation;
+    }
+    return `${coreRelation} (bên ${side})`;
+  }
+
+  return coreRelation;
 };

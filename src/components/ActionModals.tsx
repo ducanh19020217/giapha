@@ -309,6 +309,8 @@ export const EditMemberModal: React.FC<{
   const [biography, setBiography] = useState(targetMember.biography || '');
   const [birthOrder, setBirthOrder] = useState(targetMember.birthOrder || 1);
   const [relationType, setRelationType] = useState(targetMember.relationType || 'BIOLOGICAL');
+  const [isDeceased, setIsDeceased] = useState(targetMember.isDeceased || false);
+  const [deathDate, setDeathDate] = useState(targetMember.deathDate || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -320,6 +322,8 @@ export const EditMemberModal: React.FC<{
     setBiography(targetMember.biography || '');
     setBirthOrder(targetMember.birthOrder || 1);
     setRelationType(targetMember.relationType || 'BIOLOGICAL');
+    setIsDeceased(targetMember.isDeceased || false);
+    setDeathDate(targetMember.deathDate || '');
   }, [targetMember]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -335,6 +339,8 @@ export const EditMemberModal: React.FC<{
         biography,
         birthOrder,
         relationType,
+        isDeceased,
+        deathDate,
       });
     } finally {
       setIsSubmitting(false);
@@ -355,9 +361,21 @@ export const EditMemberModal: React.FC<{
             <option value="female">Nữ</option>
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Ngày/Năm sinh</label>
-          <input type="text" value={birthDate} onChange={e => setBirthDate(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 1990 hoặc 01/01/1990" />
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-wood-dark mb-1">Ngày/Năm sinh</label>
+            <input type="text" value={birthDate} onChange={e => setBirthDate(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 1990 hoặc 01/01/1990" />
+          </div>
+          {isDeceased && (
+            <div className="flex-1 animate-fade-in">
+              <label className="block text-sm font-medium text-wood-dark mb-1">Ngày/Năm mất</label>
+              <input type="text" value={deathDate} onChange={e => setDeathDate(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 2020" />
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="checkbox" id="editIsDeceased" checked={isDeceased} onChange={e => setIsDeceased(e.target.checked)} className="rounded text-burgundy focus:ring-burgundy" />
+          <label htmlFor="editIsDeceased" className="text-sm font-medium text-wood-dark">Đã khuất</label>
         </div>
         <div>
           <label className="block text-sm font-medium text-wood-dark mb-1">Thứ tự sinh (Anh/Chị/Em)</label>

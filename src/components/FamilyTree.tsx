@@ -160,39 +160,44 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
     const isMainMemberMatched = searchQuery.trim() !== '' && removeVietnameseTones(nodeDatum.name).includes(removeVietnameseTones(searchQuery.trim()));
 
     // Tính toán chiều rộng và chiều cao node dựa trên trạng thái select
-    const nodeWidth = 180 + (spouses.length * 190);
-    const nodeHeight = isSelected ? (isAdmin ? 260 : 200) : 200;
+    const nodeWidth = 220 + (spouses.length * 220);
+    const nodeHeight = isSelected ? (isAdmin ? 280 : 220) : 220;
 
     const renderActionButtons = (memberId: string, isDeceased: boolean) => {
       if (!isSelected || !isAdmin) return null;
       return (
-        <div className="flex gap-2 justify-center mt-3 border-t border-wood-light/30 pt-2 w-full">
+        <div className="flex gap-1 justify-center mt-3 pt-3 w-full border-t border-wood-light/10">
           <button 
             onClick={(e) => { e.stopPropagation(); onAddSpouse?.(memberId); }}
-            className="text-[9px] text-wood hover:text-burgundy font-serif uppercase tracking-wider outline-none"
+            className="flex-1 flex flex-col items-center justify-center gap-1 text-[9px] text-wood hover:text-burgundy font-medium uppercase outline-none transition-colors group/btn"
             title="Thêm Phối ngẫu"
           >
+            <div className="w-7 h-7 rounded-full bg-wood/5 group-hover/btn:bg-burgundy/10 flex items-center justify-center transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="16" y1="11" x2="22" y2="11"/><line x1="19" y1="8" x2="19" y2="14"/></svg>
+            </div>
             +Phu/Thê
           </button>
-          <span className="text-gray-300">|</span>
           <button 
             onClick={(e) => { e.stopPropagation(); onAddChild?.(memberId); }}
-            className="text-[9px] text-wood hover:text-burgundy font-serif uppercase tracking-wider outline-none"
+            className="flex-1 flex flex-col items-center justify-center gap-1 text-[9px] text-wood hover:text-burgundy font-medium uppercase outline-none transition-colors group/btn"
             title="Thêm Hậu duệ"
           >
+            <div className="w-7 h-7 rounded-full bg-wood/5 group-hover/btn:bg-burgundy/10 flex items-center justify-center transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
             +Hậu duệ
           </button>
           {!isDeceased && (
-            <>
-              <span className="text-gray-300">|</span>
-              <button 
-                onClick={(e) => { e.stopPropagation(); onMarkDeceased?.(memberId); }}
-                className="text-[9px] text-wood hover:text-burgundy font-serif uppercase tracking-wider outline-none"
-                title="Đánh dấu báo tử"
-              >
-                Báo tử
-              </button>
-            </>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onMarkDeceased?.(memberId); }}
+              className="flex-1 flex flex-col items-center justify-center gap-1 text-[9px] text-wood hover:text-burgundy font-medium uppercase outline-none transition-colors group/btn"
+              title="Đánh dấu báo tử"
+            >
+              <div className="w-7 h-7 rounded-full bg-wood/5 group-hover/btn:bg-burgundy/10 flex items-center justify-center transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4l2-9 5 18 2-9h5"/></svg>
+              </div>
+              Báo tử
+            </button>
           )}
         </div>
       );
@@ -207,54 +212,48 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
             <div 
               style={{ opacity: (filterLiving && isDeceased) ? 0.3 : 1 }}
               onClick={() => onSelectMember(nodeDatum.memberData.id)}
-              className={`flex-1 min-w-[160px] p-4 bg-[#Fdfbf7] border cursor-pointer transition-all flex flex-col items-center justify-center relative ${
-                nodeDatum.attributes?.relationType === 'ADOPTED' || nodeDatum.attributes?.relationType === 'STEPCHILD' ? 'border-dashed border-[2px] border-wood-light/60' : 'border-wood-light/40'
+              className={`w-[190px] flex-shrink-0 p-5 bg-white/85 backdrop-blur-md border cursor-pointer transition-all duration-300 flex flex-col items-center justify-center relative rounded-2xl group ${
+                nodeDatum.attributes?.relationType === 'ADOPTED' || nodeDatum.attributes?.relationType === 'STEPCHILD' ? 'border-dashed border-[2px] border-wood-light/60' : 'border-white/60'
               } ${
                 isSelected 
-                  ? 'shadow-[0_0_15px_rgba(139,90,43,0.3)] border-bronze z-10 scale-[1.02]' 
-                  : 'shadow-sm hover:border-bronze/60 hover:shadow-md'
-              } ${isMainMemberMatched ? 'ring-4 ring-yellow-400 bg-yellow-50/50 shadow-[0_0_20px_rgba(250,204,21,0.6)] z-20' : ''}`}
+                  ? 'shadow-[0_8px_30px_rgb(0,0,0,0.12)] border-bronze z-10 scale-[1.03] ring-1 ring-bronze' 
+                  : 'shadow-lg hover:shadow-xl hover:-translate-y-1 hover:border-bronze/40'
+              } ${isMainMemberMatched ? 'ring-4 ring-yellow-400 bg-yellow-50/90 shadow-[0_0_20px_rgba(250,204,21,0.6)] z-20' : ''}`}
               title={nodeDatum.name}
             >
-              {/* Decor corners */}
-              <div className="absolute top-1 left-1 w-2 h-2 border-t border-l border-bronze/40"></div>
-              <div className="absolute top-1 right-1 w-2 h-2 border-t border-r border-bronze/40"></div>
-              <div className="absolute bottom-1 left-1 w-2 h-2 border-b border-l border-bronze/40"></div>
-              <div className="absolute bottom-1 right-1 w-2 h-2 border-b border-r border-bronze/40"></div>
-
-              <div className="w-14 h-16 overflow-hidden border border-wood-light/30 mb-3 bg-[#f5f2eb] flex items-center justify-center shadow-inner">
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-bronze/30 bg-[#f5f2eb] flex items-center justify-center shadow-inner mb-3 group-hover:border-bronze transition-colors">
                 {nodeDatum.attributes?.avatarUrl ? (
-                  <img src={nodeDatum.attributes.avatarUrl} alt={nodeDatum.name} className="w-full h-full object-cover sepia-[30%]" />
+                  <img src={nodeDatum.attributes.avatarUrl} alt={nodeDatum.name} className="w-full h-full object-cover" />
                 ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-8 h-8 text-wood/40">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-8 h-8 text-wood/30">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 )}
               </div>
 
               {nodeDatum.attributes?.birthOrder && (
-                <div className="text-[10px] text-wood-light uppercase tracking-wider font-serif mb-0.5">
+                <div className="text-[9px] text-bronze uppercase tracking-[0.2em] font-serif mb-1 font-semibold">
                   {nodeDatum.attributes.birthOrder === 1 
                     ? (nodeDatum.attributes.gender === 'male' ? 'Trưởng nam' : 'Trưởng nữ')
                     : `Con thứ ${nodeDatum.attributes.birthOrder}`}
                 </div>
               )}
 
-              <div className={`text-sm font-serif font-bold text-center leading-tight mb-1 ${nodeDatum.attributes?.gender === 'male' ? 'text-wood-dark' : 'text-burgundy'}`}>
+              <div className={`text-base font-serif font-bold text-center leading-tight mb-1.5 ${nodeDatum.attributes?.gender === 'male' ? 'text-wood-dark' : 'text-burgundy'}`}>
                 {nodeDatum.name}
               </div>
               
               {nodeDatum.attributes?.relationType === 'ADOPTED' && (
-                <div className="text-[10px] text-wood font-serif bg-wood/10 px-2 py-0.5 rounded-full mb-1 border border-wood/20">Con nuôi</div>
+                <div className="text-[10px] text-wood font-serif bg-wood/10 px-2.5 py-0.5 rounded-full mb-1 border border-wood/20">Con nuôi</div>
               )}
               {nodeDatum.attributes?.relationType === 'STEPCHILD' && (
-                <div className="text-[10px] text-burgundy font-serif bg-burgundy/5 px-2 py-0.5 rounded-full mb-1 border border-burgundy/20 text-center">
+                <div className="text-[10px] text-burgundy font-serif bg-burgundy/5 px-2.5 py-0.5 rounded-full mb-1 border border-burgundy/20 text-center">
                   Con riêng {nodeDatum.attributes?.isStepchildOfSpouseName ? `(của ${nodeDatum.attributes.isStepchildOfSpouseName})` : ''}
                 </div>
               )}
 
               {isDeceased && (
-                <div className="text-[10px] italic text-gray-500 font-serif">
+                <div className="text-[11px] italic text-gray-400 font-serif mt-1">
                   (Từ trần)
                 </div>
               )}
@@ -269,37 +268,37 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
               const isSpouseMatched = searchQuery.trim() !== '' && removeVietnameseTones(spouse.name).includes(removeVietnameseTones(searchQuery.trim()));
               return (
                 <React.Fragment key={spouse.id}>
-                  <div className="w-6 h-px bg-wood-light/50 mt-14"></div> {/* Đường nối */}
+                  <div className="w-8 h-px bg-gradient-to-r from-wood-light/10 via-bronze/40 to-wood-light/10 mt-[52px] flex-shrink-0"></div> {/* Đường nối */}
                   <div 
                     style={{ opacity: (filterLiving && spouse.isDeceased) ? 0.3 : 1 }}
                     onClick={() => onSelectMember(spouse.id)}
-                    className={`flex-1 min-w-[160px] p-4 bg-[#Fdfbf7]/80 border border-wood-light/30 border-dashed cursor-pointer transition-all flex flex-col items-center justify-center relative ${
+                    className={`w-[190px] flex-shrink-0 p-5 bg-white/60 backdrop-blur-md border border-wood-light/20 border-dashed cursor-pointer transition-all duration-300 flex flex-col items-center justify-center relative rounded-2xl group ${
                       isSpouseSelected 
-                        ? 'shadow-[0_0_15px_rgba(139,90,43,0.3)] border-bronze z-10 scale-[1.02] border-solid' 
-                        : 'shadow-sm hover:border-bronze/60 hover:shadow-md'
-                    } ${isSpouseMatched ? 'ring-4 ring-yellow-400 bg-yellow-50/50 shadow-[0_0_20px_rgba(250,204,21,0.6)] z-20 border-solid' : ''}`}
+                        ? 'shadow-[0_8px_30px_rgb(0,0,0,0.12)] border-bronze z-10 scale-[1.03] ring-1 ring-bronze border-solid' 
+                        : 'shadow-lg hover:shadow-xl hover:-translate-y-1 hover:border-bronze/40'
+                    } ${isSpouseMatched ? 'ring-4 ring-yellow-400 bg-yellow-50/90 shadow-[0_0_20px_rgba(250,204,21,0.6)] z-20 border-solid' : ''}`}
                     title={spouse.name}
                   >
-                    <div className="w-14 h-16 overflow-hidden border border-wood-light/30 mb-3 bg-[#f5f2eb] flex items-center justify-center shadow-inner">
+                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-bronze/30 bg-[#f5f2eb] flex items-center justify-center shadow-inner mb-3 group-hover:border-bronze transition-colors">
                       {spouse.avatarUrl ? (
-                        <img src={spouse.avatarUrl} alt={spouse.name} className="w-full h-full object-cover sepia-[30%]" />
+                        <img src={spouse.avatarUrl} alt={spouse.name} className="w-full h-full object-cover" />
                       ) : (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-8 h-8 text-wood/40">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-8 h-8 text-wood/30">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                       )}
                     </div>
 
-                    <div className="text-[10px] uppercase tracking-widest text-wood-light font-serif mb-1">
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-bronze font-serif mb-1 font-semibold">
                       {spouse.gender === 'female' ? 'Con dâu' : 'Con rể'}
                     </div>
                     
-                    <div className={`text-sm font-serif font-bold text-center leading-tight mb-1 ${spouse.gender === 'male' ? 'text-wood-dark' : 'text-burgundy'}`}>
+                    <div className={`text-base font-serif font-bold text-center leading-tight mb-1.5 ${spouse.gender === 'male' ? 'text-wood-dark' : 'text-burgundy'}`}>
                       {spouse.name}
                     </div>
 
                     {spouse.isDeceased && (
-                      <div className="text-[10px] italic text-gray-500 font-serif">
+                      <div className="text-[11px] italic text-gray-400 font-serif mt-1">
                         (Từ trần)
                       </div>
                     )}
@@ -318,25 +317,29 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
   };
 
   return (
-    <div className="w-full h-full relative bg-[#F4F0EB]/50">
-      <div className="absolute top-4 right-4 z-40 flex flex-col md:flex-row items-end md:items-center gap-3 bg-white/80 backdrop-blur-sm p-3 rounded-lg shadow-md border border-wood-light/20">
-        <input 
-          type="text" 
-          placeholder="Tìm kiếm..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="border border-wood-light/30 rounded-sm px-3 py-1.5 text-sm outline-none focus:border-bronze bg-white w-full md:w-48 italic font-serif"
-        />
-        <div className="flex items-center gap-2 whitespace-nowrap">
+    <div className="w-full h-full relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#fdfbf7] via-[#f7f2ea] to-[#eee4d5]">
+      <div className="absolute top-6 right-6 z-40 flex flex-col md:flex-row items-end md:items-center gap-4 bg-white/70 backdrop-blur-md px-5 py-3 rounded-2xl shadow-xl border border-white/60">
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-wood-light" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <input 
+            type="text" 
+            placeholder="Tìm kiếm thành viên..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="border-none rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-bronze/50 bg-white/80 w-full md:w-56 font-serif shadow-inner transition-shadow"
+          />
+        </div>
+        <div className="w-px h-6 bg-wood-light/20 hidden md:block"></div>
+        <div className="flex items-center gap-2 whitespace-nowrap cursor-pointer group">
           <input 
             type="checkbox" 
             id="filterLiving" 
             checked={filterLiving}
             onChange={(e) => setFilterLiving(e.target.checked)}
-            className="rounded border-gray-300 text-burgundy focus:ring-burgundy"
+            className="w-4 h-4 rounded border-gray-300 text-burgundy focus:ring-burgundy cursor-pointer"
           />
-          <label htmlFor="filterLiving" className="text-sm text-wood-dark cursor-pointer font-medium">
-            Chỉ làm nổi bật người còn sống
+          <label htmlFor="filterLiving" className="text-sm text-wood-dark cursor-pointer font-medium group-hover:text-burgundy transition-colors">
+            Nổi bật người còn sống
           </label>
         </div>
       </div>

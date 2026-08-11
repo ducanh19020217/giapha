@@ -5,6 +5,7 @@ import { AddSpouseModal, AddChildModal, MarkDeceasedModal, AddRootModal, EditMem
 import { FamilyTree } from './components/FamilyTree'
 import { ProfilePage } from './components/ProfilePage'
 import { KinshipCalculator } from './components/KinshipCalculator'
+import { EventsCalendar } from './components/EventsCalendar'
 import { LoginModal } from './components/LoginModal'
 import { useAuth } from './context/AuthContext'
 import { DetailedMember } from './types/member'
@@ -295,6 +296,12 @@ function App() {
                   <div className="mt-8 bg-white p-8 rounded-xl shadow-sm border border-wood/10">
                     <h2 className="text-2xl font-serif text-burgundy mb-6 text-center">Tra Cứu Quan Hệ Huyết Thống</h2>
                     <KinshipCalculator members={members} />
+                  </div>
+                } />
+
+                <Route path="events" element={
+                  <div className="mt-4">
+                    <EventsCalendar members={members} />
                   </div>
                 } />
               </Routes>

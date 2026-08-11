@@ -73,7 +73,7 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => 
           <div className="mx-auto w-32 h-1 bg-gradient-to-r from-transparent via-burgundy to-transparent mt-8"></div>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-6 w-full max-w-2xl px-4">
+        <div className="flex flex-col md:flex-row gap-6 w-full max-w-4xl px-4">
           <button 
             onClick={() => navigate('/tree')}
             className="flex-1 group relative overflow-hidden rounded-xl bg-white p-8 shadow-lg transition-all hover:shadow-xl hover:-translate-y-1 border border-wood/10"
@@ -106,6 +106,24 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => 
               <div>
                 <h3 className="text-xl font-bold text-wood-dark mb-2 font-serif">Tra Cứu Quan Hệ</h3>
                 <p className="text-sm text-wood-dark/80">Tính toán và hiển thị quan hệ họ hàng, danh xưng giữa 2 thành viên.</p>
+              </div>
+            </div>
+          </button>
+
+          <button 
+            onClick={() => navigate('/events')}
+            className="flex-1 group relative overflow-hidden rounded-xl bg-white p-8 shadow-lg transition-all hover:shadow-xl hover:-translate-y-1 border border-wood/10"
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-orange-100/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="relative z-10 flex flex-col items-center text-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-orange-700 mb-2 font-serif">Lịch Sự Kiện</h3>
+                <p className="text-sm text-wood-dark/80">Theo dõi, nhắc nhở ngày giỗ chạp và sinh nhật của các thành viên.</p>
               </div>
             </div>
           </button>
