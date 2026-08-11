@@ -1,15 +1,16 @@
 import React from 'react';
 import { DetailedMember } from '../types/member';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 interface HomePageProps {
   members: DetailedMember[];
-  onNavigate: (view: 'tree' | 'kinship') => void;
   onLoginClick: () => void;
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ members, onNavigate, onLoginClick }) => {
+export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   
   // Calculate max generation
   const maxGeneration = members.length > 0 
@@ -25,22 +26,23 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onNavigate, onLogin
            }} 
       />
 
-      <header className="w-full p-4 flex justify-end relative z-10">
+      <header className="w-full p-4 flex justify-end relative z-50">
         {user ? (
           <div className="flex items-center gap-4 bg-white/50 px-4 py-2 rounded-lg shadow-sm backdrop-blur-sm border border-wood/20">
             <span className="text-sm font-medium text-wood-dark">
               Xin chào, <span className="text-burgundy font-bold">{user.username}</span>
             </span>
             <button 
-              onClick={logout} 
-              className="text-xs bg-wood hover:bg-wood-dark text-white px-3 py-1.5 rounded transition-colors shadow-sm"
+              onClick={() => { logout(); window.location.reload(); }} 
+              className="text-sm bg-wood hover:bg-wood-dark text-white px-4 py-2 rounded transition-colors shadow-sm font-medium"
             >
               Đăng xuất
             </button>
           </div>
         ) : (
           <button 
-            onClick={onLoginClick} 
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLoginClick(); }} 
             className="text-sm border-2 border-burgundy text-burgundy hover:bg-burgundy hover:text-white px-4 py-2 rounded transition-all shadow-sm font-medium bg-white/50 backdrop-blur-sm"
           >
             Đăng Nhập Quản Trị
@@ -52,12 +54,12 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onNavigate, onLogin
         <div className="text-center mb-16 space-y-6 max-w-3xl">
           <div className="mx-auto w-32 h-1 bg-gradient-to-r from-transparent via-burgundy to-transparent mb-8"></div>
           
-          <h1 className="text-5xl md:text-7xl font-serif font-bold text-burgundy mb-6 tracking-wider uppercase drop-shadow-sm">
-            Gia Phả<br/>Nguyễn Tộc
+          <h1 className="text-5xl md:text-7xl font-serif font-bold text-burgundy mb-6 tracking-wider uppercase drop-shadow-sm whitespace-pre-line leading-tight">
+            {(import.meta.env.VITE_FAMILY_TITLE || 'Gia Phả | Nguyễn Tộc').replace(' | ', '\n').replace('|', '\n')}
           </h1>
           
           <p className="text-xl md:text-2xl text-wood-dark italic font-serif leading-relaxed">
-            "Mộc bản - Lưu truyền muôn đời"
+            "{import.meta.env.VITE_FAMILY_SUBTITLE || 'Mộc bản - Lưu truyền muôn đời'}"
           </p>
           
           {maxGeneration > 0 && (
@@ -73,7 +75,7 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onNavigate, onLogin
 
         <div className="flex flex-col md:flex-row gap-6 w-full max-w-2xl px-4">
           <button 
-            onClick={() => onNavigate('tree')}
+            onClick={() => navigate('/tree')}
             className="flex-1 group relative overflow-hidden rounded-xl bg-white p-8 shadow-lg transition-all hover:shadow-xl hover:-translate-y-1 border border-wood/10"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-burgundy/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -91,7 +93,7 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onNavigate, onLogin
           </button>
 
           <button 
-            onClick={() => onNavigate('kinship')}
+            onClick={() => navigate('/kinship')}
             className="flex-1 group relative overflow-hidden rounded-xl bg-white p-8 shadow-lg transition-all hover:shadow-xl hover:-translate-y-1 border border-wood/10"
           >
             <div className="absolute inset-0 bg-gradient-to-bl from-wood/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>

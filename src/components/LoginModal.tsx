@@ -22,19 +22,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5001/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Đăng nhập thất bại');
+      // Vì đã chuyển sang Google Apps Script, phần auth thực chất nằm ở việc 
+      // gửi đúng password. Ta cứ lưu password vào token, nếu sai thì lúc thêm/sửa 
+      // sẽ bị lỗi "Unauthorized".
+      if (!password) {
+        throw new Error('Vui lòng nhập mật khẩu');
       }
 
-      login(data.user, data.token);
+      login({ id: 'admin-1', username, role: 'ADMIN' }, password);
       onClose();
     } catch (err: any) {
       setError(err.message);
@@ -44,8 +39,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden relative">
         <div className="bg-wood text-white px-6 py-4 flex justify-between items-center">
           <h3 className="text-xl font-serif">Đăng Nhập Quản Trị</h3>
           <button onClick={onClose} className="text-white hover:text-orange-200 font-bold text-xl">&times;</button>

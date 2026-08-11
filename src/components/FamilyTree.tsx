@@ -20,6 +20,7 @@ interface FamilyTreeProps {
   onMarkDeceased?: (memberId: string) => void;
   onAddRoot?: () => void;
   isAdmin?: boolean;
+  isLoading?: boolean;
 }
 
 interface TreeNode {
@@ -37,7 +38,8 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
   onAddChild,
   onMarkDeceased,
   onAddRoot,
-  isAdmin
+  isAdmin,
+  isLoading
 }) => {
   const [filterLiving, setFilterLiving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,6 +59,8 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
           isDeceased: m.isDeceased,
           gender: m.gender,
           avatarUrl: m.avatarUrl,
+          relationType: m.relationType,
+          birthOrder: m.birthOrder,
           spouses: spousesData
         },
         children: [],
@@ -65,29 +69,57 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
     });
 
     let rootNodes: TreeNode[] = [];
+    const marriedInSpouses = new Set<string>();
 
-    // Gắn node con vào node cha (Ưu tiên gắn vào Cha, nếu không có cha thì gắn vào Mẹ)
+    // Xác định ai là người ghép vào họ (vợ/chồng của người có máu mủ)
     members.forEach(m => {
-      const node = memberMap.get(m.id)!;
-      // Tránh lặp: Vợ/chồng đã được hiển thị ghép vào node của chồng/vợ, nên không cần biến họ thành node gốc nếu họ không có cha mẹ trong họ
-      if (m.fatherId && memberMap.has(m.fatherId)) {
-        memberMap.get(m.fatherId)!.children!.push(node);
-      } else if (m.motherId && memberMap.has(m.motherId)) {
-        memberMap.get(m.motherId)!.children!.push(node);
-      } else {
-        // Resolve who should be the main root node if they are spouses without parents
         const isSpouseMarriedIn = members.some(other => {
           if (!other.spouses?.some(s => s.id === m.id)) return false;
-          // If the other person has parents, they are bloodline, so 'm' is married-in
           if (other.fatherId || other.motherId) return true;
-          // If neither has parents (root couple), the one created first (appears earlier in array) is the main root
           return members.indexOf(other) < members.indexOf(m);
         });
-
-        if (!isSpouseMarriedIn) {
-          rootNodes.push(node); 
+        if (isSpouseMarriedIn) {
+            marriedInSpouses.add(m.id);
         }
+    });
+
+    // Gắn node con vào node cha
+    members.forEach(m => {
+      const node = memberMap.get(m.id)!;
+      
+      let attached = false;
+      if (m.fatherId && memberMap.has(m.fatherId)) {
+        memberMap.get(m.fatherId)!.children!.push(node);
+        attached = true;
+      } else if (m.motherId && memberMap.has(m.motherId)) {
+        memberMap.get(m.motherId)!.children!.push(node);
+        attached = true;
+      } 
+      
+      if (!attached && !marriedInSpouses.has(m.id)) {
+         rootNodes.push(node); 
       }
+    });
+
+    // Xử lý Con riêng của Vợ/Chồng lấy vào họ (vì họ không nằm trên cây chính)
+    members.forEach(m => {
+       if (marriedInSpouses.has(m.id)) {
+           const spouseNode = memberMap.get(m.id)!;
+           if (spouseNode.children && spouseNode.children.length > 0) {
+               // Tìm người chồng/vợ là người máu mủ (nằm trên cây)
+               const bloodlineSpouse = members.find(other => other.spouses?.some(s => s.id === m.id) && !marriedInSpouses.has(other.id));
+               if (bloodlineSpouse) {
+                   const bloodlineNode = memberMap.get(bloodlineSpouse.id)!;
+                   // Chuyển các con riêng sang node của người máu mủ để vẽ được
+                   spouseNode.children.forEach(child => {
+                       if (!child.attributes) child.attributes = {};
+                       child.attributes.isStepchildOfSpouseName = m.name;
+                       bloodlineNode.children!.push(child);
+                   });
+                   spouseNode.children = [];
+               }
+           }
+       }
     });
 
     // Sắp xếp
@@ -125,9 +157,11 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
     const isFilteredOut = filterLiving && isDeceased;
     const spouses = nodeDatum.attributes?.spouses || [];
 
+    const isMainMemberMatched = searchQuery.trim() !== '' && removeVietnameseTones(nodeDatum.name).includes(removeVietnameseTones(searchQuery.trim()));
+
     // Tính toán chiều rộng và chiều cao node dựa trên trạng thái select
     const nodeWidth = 180 + (spouses.length * 190);
-    const nodeHeight = isSelected ? (isAdmin ? 220 : 170) : 170;
+    const nodeHeight = isSelected ? (isAdmin ? 260 : 200) : 200;
 
     const renderActionButtons = (memberId: string, isDeceased: boolean) => {
       if (!isSelected || !isAdmin) return null;
@@ -173,11 +207,13 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
             <div 
               style={{ opacity: (filterLiving && isDeceased) ? 0.3 : 1 }}
               onClick={() => onSelectMember(nodeDatum.memberData.id)}
-              className={`flex-1 min-w-[160px] p-4 bg-[#Fdfbf7] border border-wood-light/40 cursor-pointer transition-all flex flex-col items-center justify-center relative ${
+              className={`flex-1 min-w-[160px] p-4 bg-[#Fdfbf7] border cursor-pointer transition-all flex flex-col items-center justify-center relative ${
+                nodeDatum.attributes?.relationType === 'ADOPTED' || nodeDatum.attributes?.relationType === 'STEPCHILD' ? 'border-dashed border-[2px] border-wood-light/60' : 'border-wood-light/40'
+              } ${
                 isSelected 
                   ? 'shadow-[0_0_15px_rgba(139,90,43,0.3)] border-bronze z-10 scale-[1.02]' 
                   : 'shadow-sm hover:border-bronze/60 hover:shadow-md'
-              }`}
+              } ${isMainMemberMatched ? 'ring-4 ring-yellow-400 bg-yellow-50/50 shadow-[0_0_20px_rgba(250,204,21,0.6)] z-20' : ''}`}
               title={nodeDatum.name}
             >
               {/* Decor corners */}
@@ -195,10 +231,28 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
                   </svg>
                 )}
               </div>
+
+              {nodeDatum.attributes?.birthOrder && (
+                <div className="text-[10px] text-wood-light uppercase tracking-wider font-serif mb-0.5">
+                  {nodeDatum.attributes.birthOrder === 1 
+                    ? (nodeDatum.attributes.gender === 'male' ? 'Trưởng nam' : 'Trưởng nữ')
+                    : `Con thứ ${nodeDatum.attributes.birthOrder}`}
+                </div>
+              )}
+
               <div className={`text-sm font-serif font-bold text-center leading-tight mb-1 ${nodeDatum.attributes?.gender === 'male' ? 'text-wood-dark' : 'text-burgundy'}`}>
                 {nodeDatum.name}
               </div>
               
+              {nodeDatum.attributes?.relationType === 'ADOPTED' && (
+                <div className="text-[10px] text-wood font-serif bg-wood/10 px-2 py-0.5 rounded-full mb-1 border border-wood/20">Con nuôi</div>
+              )}
+              {nodeDatum.attributes?.relationType === 'STEPCHILD' && (
+                <div className="text-[10px] text-burgundy font-serif bg-burgundy/5 px-2 py-0.5 rounded-full mb-1 border border-burgundy/20 text-center">
+                  Con riêng {nodeDatum.attributes?.isStepchildOfSpouseName ? `(của ${nodeDatum.attributes.isStepchildOfSpouseName})` : ''}
+                </div>
+              )}
+
               {isDeceased && (
                 <div className="text-[10px] italic text-gray-500 font-serif">
                   (Từ trần)
@@ -212,6 +266,7 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
             {/* Các Phối ngẫu (Vợ/Chồng) */}
             {spouses.map((spouse: DetailedMember) => {
               const isSpouseSelected = selectedMemberId === spouse.id;
+              const isSpouseMatched = searchQuery.trim() !== '' && removeVietnameseTones(spouse.name).includes(removeVietnameseTones(searchQuery.trim()));
               return (
                 <React.Fragment key={spouse.id}>
                   <div className="w-6 h-px bg-wood-light/50 mt-14"></div> {/* Đường nối */}
@@ -222,7 +277,7 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
                       isSpouseSelected 
                         ? 'shadow-[0_0_15px_rgba(139,90,43,0.3)] border-bronze z-10 scale-[1.02] border-solid' 
                         : 'shadow-sm hover:border-bronze/60 hover:shadow-md'
-                    }`}
+                    } ${isSpouseMatched ? 'ring-4 ring-yellow-400 bg-yellow-50/50 shadow-[0_0_20px_rgba(250,204,21,0.6)] z-20 border-solid' : ''}`}
                     title={spouse.name}
                   >
                     <div className="w-14 h-16 overflow-hidden border border-wood-light/30 mb-3 bg-[#f5f2eb] flex items-center justify-center shadow-inner">
@@ -236,7 +291,7 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
                     </div>
 
                     <div className="text-[10px] uppercase tracking-widest text-wood-light font-serif mb-1">
-                      Phối ngẫu
+                      {spouse.gender === 'female' ? 'Con dâu' : 'Con rể'}
                     </div>
                     
                     <div className={`text-sm font-serif font-bold text-center leading-tight mb-1 ${spouse.gender === 'male' ? 'text-wood-dark' : 'text-burgundy'}`}>
@@ -286,13 +341,18 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
         </div>
       </div>
       <div id="treeWrapper" className="w-full h-full overflow-hidden" style={{ touchAction: 'none' }}>
-        {treeData.length > 0 ? (
+        {isLoading ? (
+          <div className="w-full h-full flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-burgundy mb-4"></div>
+            <p className="text-wood-dark font-serif italic animate-pulse">Đang tải mộc bản...</p>
+          </div>
+        ) : treeData.length > 0 ? (
           <Tree
             data={treeData}
             orientation="vertical"
             pathFunc="step"
             translate={{ x: 300, y: 80 }}
-            nodeSize={{ x: 300, y: 280 }}
+            nodeSize={{ x: 300, y: 320 }}
             renderCustomNodeElement={renderCustomNodeElement}
             separation={{ siblings: 1.5, nonSiblings: 2 }}
           />

@@ -18,6 +18,8 @@ export interface DetailedMember {
   spouses: Array<{ id: string; order: number; isPrimary: boolean }>;
   fatherId?: string;
   motherId?: string;
+  relationType?: 'BIOLOGICAL' | 'ADOPTED' | 'STEPCHILD';
   generation: number;       // Thứ tự thế hệ tính từ Cụ Tổ (Cụ Tổ = thế hệ 1)
   birthOrder: number;       // Thứ tự sinh trong gia đình (Con cả là 1, con thứ là 2...)
 }
+
