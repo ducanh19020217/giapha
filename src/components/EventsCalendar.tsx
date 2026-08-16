@@ -20,9 +20,11 @@ export const EventsCalendar: React.FC<EventsCalendarProps> = ({ members }) => {
     const events: CalendarEvent[] = [];
 
     // Helper to parse date strings like "15/08/1990 (Âm lịch)" or "1999-08-14T17:00:00.000Z"
-    const parseDate = (dateString: string, type: EventType, member: DetailedMember) => {
-      if (!dateString) return;
-      
+    // Nhận cả string lẫn number vì Google Sheets có thể trả về năm sinh dạng số (VD: 1990)
+    const parseDate = (rawDate: string | number, type: EventType, member: DetailedMember) => {
+      if (!rawDate) return;
+      const dateString = String(rawDate);
+
       let day = 0;
       let month = 0;
 
