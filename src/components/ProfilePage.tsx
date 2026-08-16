@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { DetailedMember } from '../types/member';
 import { FamilyEvent } from '../types/event';
 import { DateWithCalendarInput } from './ActionModals';
 import { resizeImageToBase64 } from '../utils/imageUpload';
 import { uploadAvatar } from '../services/api';
+import { getAncestorTree } from '../utils/kinshipCalculator';
 
 interface ProfilePageProps {
   member: DetailedMember;
@@ -42,6 +43,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const children = allMembers.filter(
     (m) => m.fatherId === member.id || m.motherId === member.id
   );
+  const ancestors = useMemo(() => getAncestorTree(member, allMembers), [member, allMembers]);
 
   // --- Trạng thái form Sửa hồ sơ ---
   const [name, setName] = useState(member.name);
@@ -322,12 +324,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <div className="bg-orange-50/50 p-4 md:p-5 rounded-lg border border-wood-light/10 space-y-4 md:grid md:grid-cols-2 md:gap-6 md:space-y-0">
               <section>
                 <h3 className="text-base text-wood font-semibold mb-2 flex items-center gap-2 font-serif">
-                  <span className="w-1.5 h-4 bg-burgundy rounded-full block"></span> Thân sinh
+                  <span className="w-1.5 h-4 bg-burgundy rounded-full block"></span> Tổ Tiên
                 </h3>
-                <div className="space-y-1.5 text-sm text-gray-700">
-                  <p>Cha: <span className="font-medium text-wood-dark">{allMembers.find(m => m.id === member.fatherId)?.name || 'Không rõ'}</span></p>
-                  <p>Mẹ: <span className="font-medium text-wood-dark">{allMembers.find(m => m.id === member.motherId)?.name || 'Không rõ'}</span></p>
-                </div>
+                {ancestors.length > 0 ? (
+                  <div className="space-y-1.5 text-sm text-gray-700">
+                    {ancestors.map(a => (
+                      <p key={a.member.id}>
+                        {a.label}: <span className="font-medium text-wood-dark">{a.member.name}</span>
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 italic font-serif">Chưa cập nhật</p>
+                )}
               </section>
 
               <section>

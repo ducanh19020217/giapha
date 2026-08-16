@@ -1,5 +1,64 @@
 import { DetailedMember } from '../types/member';
 
+export interface AncestorEntry {
+  member: DetailedMember;
+  label: string; // Cha, Mẹ, Ông Nội, Bà Nội, Ông Ngoại, Bà Ngoại, Cụ Ông, Cụ Bà...
+  generationsUp: number; // 1 = cha/mẹ, 2 = ông/bà, 3+ = cụ...
+}
+
+function ancestorLabel(generationsUp: number, gender: 'male' | 'female', isPaternalLine: boolean | null): string {
+  if (generationsUp === 1) return gender === 'male' ? 'Cha' : 'Mẹ';
+  if (generationsUp === 2) {
+    if (isPaternalLine === true) return gender === 'male' ? 'Ông Nội' : 'Bà Nội';
+    if (isPaternalLine === false) return gender === 'male' ? 'Ông Ngoại' : 'Bà Ngoại';
+    return gender === 'male' ? 'Ông' : 'Bà';
+  }
+  return gender === 'male' ? 'Cụ Ông' : 'Cụ Bà'; // Từ đời thứ 3 trở lên gộp chung thành "Cụ" (khớp quy ước ở calculateCoreKinship)
+}
+
+/**
+ * Trả về TẤT CẢ tổ tiên (đi theo cả nhánh Nội lẫn Ngoại) của 1 thành viên,
+ * lên tối đa `maxGenerations` đời. Dùng để hiển thị (VD: mục "Tổ Tiên" trong
+ * hồ sơ), khác với getAncestors nội bộ của calculateCoreKinship (chỉ đi theo
+ * 1 nhánh để tìm tổ tiên chung phục vụ tính xưng hô).
+ */
+export function getAncestorTree(
+  member: DetailedMember,
+  allMembers: DetailedMember[],
+  maxGenerations = 5
+): AncestorEntry[] {
+  const memberMap = new Map<string, DetailedMember>();
+  allMembers.forEach(m => memberMap.set(m.id, m));
+
+  const results: AncestorEntry[] = [];
+
+  const visit = (
+    current: DetailedMember,
+    depth: number,
+    isPaternalLine: boolean | null
+  ) => {
+    if (depth >= maxGenerations) return;
+    const nextDepth = depth + 1;
+
+    const father = current.fatherId ? memberMap.get(current.fatherId) : undefined;
+    if (father) {
+      const line = depth === 0 ? true : isPaternalLine;
+      results.push({ member: father, label: ancestorLabel(nextDepth, 'male', line), generationsUp: nextDepth });
+      visit(father, nextDepth, line);
+    }
+
+    const mother = current.motherId ? memberMap.get(current.motherId) : undefined;
+    if (mother) {
+      const line = depth === 0 ? false : isPaternalLine;
+      results.push({ member: mother, label: ancestorLabel(nextDepth, 'female', line), generationsUp: nextDepth });
+      visit(mother, nextDepth, line);
+    }
+  };
+
+  visit(member, 0, null);
+  return results;
+}
+
 /**
  * Thuật toán tính toán xưng hô dòng họ (Kinship Calculator).
  * Quy tắc:
