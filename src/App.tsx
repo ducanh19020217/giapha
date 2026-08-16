@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { HomePage } from './components/HomePage'
-import { AddSpouseModal, AddChildModal, MarkDeceasedModal, AddRootModal, EditMemberModal, AddParentModal, AddEventModal } from './components/ActionModals'
+import { AddSpouseModal, AddChildModal, MarkDeceasedModal, AddRootModal, AddParentModal, AddEventModal } from './components/ActionModals'
 import { FamilyTree } from './components/FamilyTree'
 import { ProfilePage } from './components/ProfilePage'
 import { KinshipCalculator } from './components/KinshipCalculator'
@@ -12,50 +12,50 @@ import { DetailedMember } from './types/member'
 import { FamilyEvent } from './types/event'
 import * as api from './services/api'
 import { getMembers, addMember, addSpouse, markDeceased, updateMember, deleteMember } from './services/api'
-// Khởi tạo ID ngẫu nhiên đơn giản
-const generateId = () => 'm_' + Math.random().toString(36).substr(2, 9);
 
-// Mock Data Ban đầu
-const INITIAL_MEMBERS: DetailedMember[] = [
-  {
-    id: 'm1',
-    name: 'Nguyễn Văn Cụ Tổ',
-    gender: 'male',
-    birthDate: '1900',
-    isDeceased: true,
-    deathDate: '1980',
-    generation: 1,
-    birthOrder: 1,
-    spouses: [],
-    academicLevel: 'Nho học',
-    career: 'Lý trưởng',
-    biography: 'Người khai sinh ra dòng họ Nguyễn Văn tại làng Vọng.',
-    achievements: ['Xây dựng từ đường dòng họ', 'Khuyến học làng xã']
-  },
-  {
-    id: 'm2',
-    name: 'Nguyễn Văn A (Con cả)',
-    gender: 'male',
-    birthDate: '1930',
-    isDeceased: false,
-    generation: 2,
-    birthOrder: 1,
-    fatherId: 'm1',
-    spouses: [],
-    career: 'Trưởng Tộc'
-  },
-  {
-    id: 'm3',
-    name: 'Nguyễn Văn B (Con thứ)',
-    gender: 'male',
-    birthDate: '1935',
-    isDeceased: false,
-    generation: 2,
-    birthOrder: 2,
-    fatherId: 'm1',
-    spouses: []
+// Bọc ProfilePage để đọc :id từ URL và tra thành viên tương ứng (route /member/:id)
+function MemberPageRoute(props: {
+  members: DetailedMember[];
+  events: FamilyEvent[];
+  isAdmin: boolean;
+  onAddSpouse: (id: string) => void;
+  onAddChild: (id: string) => void;
+  onAddParent: (id: string) => void;
+  onMarkDeceased: (id: string) => void;
+  onAddEvent: (id: string) => void;
+  onDeleteEvent: (id: string) => void;
+  onSaveEdit: (id: string, data: Partial<DetailedMember>) => Promise<void>;
+  onDelete: (id: string) => void;
+}) {
+  const { id } = useParams();
+  const member = props.members.find(m => m.id === id);
+
+  if (!member) {
+    return (
+      <div className="text-center py-24">
+        <p className="text-wood-dark mb-4">Không tìm thấy thành viên này.</p>
+        <Link to="/tree" className="text-burgundy underline font-medium">Quay lại Cây Phả Hệ</Link>
+      </div>
+    );
   }
-];
+
+  return (
+    <ProfilePage
+      member={member}
+      allMembers={props.members}
+      events={props.events}
+      isAdmin={props.isAdmin}
+      onAddSpouse={() => props.onAddSpouse(member.id)}
+      onAddChild={() => props.onAddChild(member.id)}
+      onAddParent={() => props.onAddParent(member.id)}
+      onMarkDeceased={() => props.onMarkDeceased(member.id)}
+      onAddEvent={() => props.onAddEvent(member.id)}
+      onDeleteEvent={props.onDeleteEvent}
+      onSaveEdit={(data) => props.onSaveEdit(member.id, data)}
+      onDelete={() => props.onDelete(member.id)}
+    />
+  );
+}
 
 function App() {
   const [members, setMembers] = useState<DetailedMember[]>([]);
@@ -67,6 +67,7 @@ function App() {
   const isAdmin = user?.role === 'ADMIN';
 
   const location = useLocation();
+  const navigate = useNavigate();
   const isTreeView = location.pathname === '/tree';
 
   // Các state cho Modals
@@ -75,7 +76,6 @@ function App() {
   const [isChildModalOpen, setChildModalOpen] = useState(false);
   const [isDeceasedModalOpen, setDeceasedModalOpen] = useState(false);
   const [isRootModalOpen, setRootModalOpen] = useState(false);
-  const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isParentModalOpen, setParentModalOpen] = useState(false);
   const [isEventModalOpen, setEventModalOpen] = useState(false);
   const [eventModalDefaultMemberId, setEventModalDefaultMemberId] = useState<string | undefined>(undefined);
@@ -124,14 +124,14 @@ function App() {
     }
   };
 
-  const handleEditMember = async (data: Partial<DetailedMember>) => {
-    if (!selectedMember) return;
+  const handleEditMember = async (id: string, data: Partial<DetailedMember>) => {
     try {
-      await updateMember(selectedMember.id, data);
+      await updateMember(id, data);
       await fetchMembers();
-      setEditModalOpen(false);
     } catch (error) {
       console.error('Failed to update member:', error);
+      alert('Lỗi khi lưu thay đổi: ' + error);
+      throw error; // để trang hồ sơ giữ nguyên form thay vì đóng chế độ sửa
     }
   };
 
@@ -140,6 +140,9 @@ function App() {
     setMembers(prev => prev.filter(m => m.id !== id));
     if (selectedMemberId === id) {
       setSelectedMemberId('');
+    }
+    if (location.pathname === `/member/${id}`) {
+      navigate('/tree');
     }
 
     // 2. Gọi API ngầm phía sau (mất khoảng ~3 giây nhưng người dùng không phải đợi)
@@ -154,6 +157,13 @@ function App() {
       fetchMembers();
     }
   };
+
+  // Mở các modal thao tác nhanh (dùng chung cho Cây Phả Hệ và Trang Hồ Sơ)
+  const openAddSpouse = (id: string) => { setSelectedMemberId(id); setSpouseModalOpen(true); };
+  const openAddChild = (id: string) => { setSelectedMemberId(id); setChildModalOpen(true); };
+  const openAddParent = (id: string) => { setSelectedMemberId(id); setParentModalOpen(true); };
+  const openMarkDeceased = (id: string) => { setSelectedMemberId(id); setDeceasedModalOpen(true); };
+  const openAddEvent = (id: string) => { setEventModalDefaultMemberId(id); setEventModalOpen(true); };
 
   const handleAddSpouse = async (name: string, isPrimary: boolean) => {
     if (!selectedMember) return;
@@ -314,20 +324,36 @@ function App() {
               <Routes>
                 <Route path="tree" element={
                   <div className="h-full w-full">
-                    <FamilyTree 
-                      members={members} 
+                    <FamilyTree
+                      members={members}
                       isLoading={isFetching}
-                      selectedMemberId={selectedMemberId} 
-                      onSelectMember={setSelectedMemberId} 
-                      onAddSpouse={(id) => { setSelectedMemberId(id); setSpouseModalOpen(true); }}
-                      onAddChild={(id) => { setSelectedMemberId(id); setChildModalOpen(true); }}
-                      onMarkDeceased={(id) => { setSelectedMemberId(id); setDeceasedModalOpen(true); }}
+                      selectedMemberId={selectedMemberId}
+                      onSelectMember={setSelectedMemberId}
+                      onAddSpouse={openAddSpouse}
+                      onAddChild={openAddChild}
+                      onMarkDeceased={openMarkDeceased}
                       onAddRoot={() => setRootModalOpen(true)}
                       isAdmin={isAdmin}
                     />
                   </div>
                 } />
-                
+
+                <Route path="member/:id" element={
+                  <MemberPageRoute
+                    members={members}
+                    events={events}
+                    isAdmin={isAdmin}
+                    onAddSpouse={openAddSpouse}
+                    onAddChild={openAddChild}
+                    onAddParent={openAddParent}
+                    onMarkDeceased={openMarkDeceased}
+                    onAddEvent={openAddEvent}
+                    onDeleteEvent={handleDeleteEvent}
+                    onSaveEdit={handleEditMember}
+                    onDelete={handleDeleteMember}
+                  />
+                } />
+
                 <Route path="kinship" element={
                   <div className="mt-8 bg-white p-8 rounded-xl shadow-sm border border-wood/10">
                     <h2 className="text-2xl font-serif text-burgundy mb-6 text-center">Tra Cứu Quan Hệ Huyết Thống</h2>
@@ -360,24 +386,6 @@ function App() {
 
       {/* --- MODALS --- */}
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setLoginModalOpen(false)} />
-
-      {selectedMember && (
-        <ProfilePage
-          member={selectedMember}
-          allMembers={members}
-          events={events}
-          onAddSpouse={() => setSpouseModalOpen(true)}
-          onAddChild={() => setChildModalOpen(true)}
-          onAddParent={() => setParentModalOpen(true)}
-          onMarkDeceased={() => setDeceasedModalOpen(true)}
-          onAddEvent={() => { setEventModalDefaultMemberId(selectedMember.id); setEventModalOpen(true); }}
-          onDeleteEvent={handleDeleteEvent}
-          onEdit={() => setEditModalOpen(true)}
-          onDelete={() => handleDeleteMember(selectedMember.id)}
-          isAdmin={isAdmin}
-          onClose={() => setSelectedMemberId('')}
-        />
-      )}
 
       <AddRootModal
         isOpen={isRootModalOpen}
@@ -414,16 +422,10 @@ function App() {
             onSave={handleAddParent} 
             targetMember={selectedMember} 
           />
-          <MarkDeceasedModal 
-            isOpen={isDeceasedModalOpen} 
-            onClose={() => setDeceasedModalOpen(false)} 
-            onSave={handleMarkDeceased} 
-            targetMember={selectedMember} 
-          />
-          <EditMemberModal
-            isOpen={isEditModalOpen}
-            onClose={() => setEditModalOpen(false)}
-            onSave={handleEditMember}
+          <MarkDeceasedModal
+            isOpen={isDeceasedModalOpen}
+            onClose={() => setDeceasedModalOpen(false)}
+            onSave={handleMarkDeceased}
             targetMember={selectedMember}
           />
         </>

@@ -4,7 +4,7 @@ import { FamilyEvent } from '../types/event';
 import { isLunarDateString, withLunarAnnotation } from '../utils/dateAnnotation';
 
 // Ô nhập ngày dùng chung, kèm lựa chọn Dương lịch / Âm lịch (đánh dấu bằng hậu tố "(Âm lịch)")
-const DateWithCalendarInput: React.FC<{
+export const DateWithCalendarInput: React.FC<{
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -328,137 +328,6 @@ export const AddParentModal: React.FC<{
         </div>
         <button type="submit" disabled={isSubmitting} className="w-full bg-burgundy hover:bg-burgundy-dark text-white py-2 rounded font-medium transition-colors disabled:opacity-50">
           {isSubmitting ? 'Đang xử lý...' : 'Lưu Thông Tin'}
-        </button>
-      </form>
-    </Modal>
-  );
-};
-
-// --- MODAL SỬA THÔNG TIN ---
-export const EditMemberModal: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: Partial<DetailedMember>) => Promise<void> | void;
-  targetMember: DetailedMember;
-}> = ({ isOpen, onClose, onSave, targetMember }) => {
-  const [name, setName] = useState(targetMember.name);
-  const [gender, setGender] = useState(targetMember.gender);
-  const [birthDate, setBirthDate] = useState(targetMember.birthDate || '');
-  const [career, setCareer] = useState(targetMember.career || '');
-  const [academicLevel, setAcademicLevel] = useState(targetMember.academicLevel || '');
-  const [biography, setBiography] = useState(targetMember.biography || '');
-  const [email, setEmail] = useState(targetMember.email || '');
-  const [birthOrder, setBirthOrder] = useState(targetMember.birthOrder || 1);
-  const [relationType, setRelationType] = useState(targetMember.relationType || 'BIOLOGICAL');
-  const [isDeceased, setIsDeceased] = useState(targetMember.isDeceased || false);
-  const [deathDate, setDeathDate] = useState(targetMember.deathDate || '');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    setName(targetMember.name);
-    setGender(targetMember.gender);
-    setBirthDate(targetMember.birthDate || '');
-    setCareer(targetMember.career || '');
-    setAcademicLevel(targetMember.academicLevel || '');
-    setBiography(targetMember.biography || '');
-    setEmail(targetMember.email || '');
-    setBirthOrder(targetMember.birthOrder || 1);
-    setRelationType(targetMember.relationType || 'BIOLOGICAL');
-    setIsDeceased(targetMember.isDeceased || false);
-    setDeathDate(targetMember.deathDate || '');
-  }, [targetMember]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      await onSave({
-        name,
-        gender,
-        birthDate,
-        career,
-        academicLevel,
-        biography,
-        email,
-        birthOrder,
-        relationType,
-        isDeceased,
-        deathDate,
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Sửa thông tin: ${targetMember.name}`}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Họ tên</label>
-          <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Giới tính</label>
-          <select value={gender} onChange={e => setGender(e.target.value as 'male'|'female')} className="w-full border rounded p-2 outline-none">
-            <option value="male">Nam</option>
-            <option value="female">Nữ</option>
-          </select>
-        </div>
-        <div className="flex gap-4 flex-col md:flex-row">
-          <div className="flex-1">
-            <DateWithCalendarInput
-              label="Ngày/Năm sinh"
-              value={birthDate}
-              onChange={setBirthDate}
-              placeholder="VD: 1990 hoặc 01/01/1990"
-            />
-          </div>
-          {isDeceased && (
-            <div className="flex-1 animate-fade-in">
-              <DateWithCalendarInput
-                label="Ngày/Năm mất"
-                value={deathDate}
-                onChange={setDeathDate}
-                placeholder="VD: 2020"
-              />
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <input type="checkbox" id="editIsDeceased" checked={isDeceased} onChange={e => setIsDeceased(e.target.checked)} className="rounded text-burgundy focus:ring-burgundy" />
-          <label htmlFor="editIsDeceased" className="text-sm font-medium text-wood-dark">Đã khuất</label>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Thứ tự sinh (Anh/Chị/Em)</label>
-          <input type="number" min="1" value={birthOrder} onChange={e => setBirthOrder(parseInt(e.target.value) || 1)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 1 (Trưởng), 2 (Thứ)" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Loại quan hệ</label>
-          <select value={relationType} onChange={e => setRelationType(e.target.value as 'BIOLOGICAL' | 'ADOPTED' | 'STEPCHILD')} className="w-full border rounded p-2 outline-none">
-            <option value="BIOLOGICAL">Con đẻ</option>
-            <option value="ADOPTED">Con nuôi</option>
-            <option value="STEPCHILD">Con riêng</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Học vấn/Học vị</label>
-          <input type="text" value={academicLevel} onChange={e => setAcademicLevel(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: Cử nhân, Tiến sĩ" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Nghề nghiệp/Chức vụ</label>
-          <input type="text" value={career} onChange={e => setCareer(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: Kỹ sư phần mềm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Tiểu sử</label>
-          <textarea value={biography} onChange={e => setBiography(e.target.value)} rows={3} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="Ghi chú thêm về thành viên..."></textarea>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Email liên hệ (tùy chọn)</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: nguoidung@gmail.com" />
-          <p className="text-xs text-gray-500 mt-1">Dùng để gửi email nhắc lịch giỗ/sinh nhật tự động.</p>
-        </div>
-        <button type="submit" disabled={isSubmitting} className="w-full bg-burgundy hover:bg-burgundy-dark text-white py-2 rounded font-medium transition-colors disabled:opacity-50">
-          {isSubmitting ? 'Đang xử lý...' : 'Lưu Thay Đổi'}
         </button>
       </form>
     </Modal>

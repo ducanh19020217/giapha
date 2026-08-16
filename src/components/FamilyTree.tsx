@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Tree from 'react-d3-tree';
 import { DetailedMember } from '../types/member';
 
@@ -43,6 +44,7 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
 }) => {
   const [filterLiving, setFilterLiving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
 
   const treeData = useMemo(() => {
     const memberMap = new Map<string, TreeNode>();
@@ -154,50 +156,63 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
   const renderCustomNodeElement = ({ nodeDatum }: any) => {
     const isSelected = nodeDatum.memberData.id === selectedMemberId;
     const isDeceased = nodeDatum.attributes?.isDeceased;
-    const isFilteredOut = filterLiving && isDeceased;
     const spouses = nodeDatum.attributes?.spouses || [];
 
     const isMainMemberMatched = searchQuery.trim() !== '' && removeVietnameseTones(nodeDatum.name).includes(removeVietnameseTones(searchQuery.trim()));
 
     // Tính toán chiều rộng và chiều cao node dựa trên trạng thái select
     const nodeWidth = 220 + (spouses.length * 220);
-    const nodeHeight = isSelected ? (isAdmin ? 280 : 220) : 220;
+    const nodeHeight = isSelected ? 280 : 220;
 
     const renderActionButtons = (memberId: string, isDeceased: boolean) => {
-      if (!isSelected || !isAdmin) return null;
+      if (!isSelected) return null;
       return (
         <div className="flex gap-1 justify-center mt-3 pt-3 w-full border-t border-wood-light/10">
-          <button 
-            onClick={(e) => { e.stopPropagation(); onAddSpouse?.(memberId); }}
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/member/${memberId}`); }}
             className="flex-1 flex flex-col items-center justify-center gap-1 text-[9px] text-wood hover:text-burgundy font-medium uppercase outline-none transition-colors group/btn"
-            title="Thêm Phối ngẫu"
+            title="Xem hồ sơ đầy đủ"
           >
             <div className="w-7 h-7 rounded-full bg-wood/5 group-hover/btn:bg-burgundy/10 flex items-center justify-center transition-colors">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="16" y1="11" x2="22" y2="11"/><line x1="19" y1="8" x2="19" y2="14"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </div>
-            +Phu/Thê
+            Hồ sơ
           </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onAddChild?.(memberId); }}
-            className="flex-1 flex flex-col items-center justify-center gap-1 text-[9px] text-wood hover:text-burgundy font-medium uppercase outline-none transition-colors group/btn"
-            title="Thêm Hậu duệ"
-          >
-            <div className="w-7 h-7 rounded-full bg-wood/5 group-hover/btn:bg-burgundy/10 flex items-center justify-center transition-colors">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </div>
-            +Hậu duệ
-          </button>
-          {!isDeceased && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); onMarkDeceased?.(memberId); }}
-              className="flex-1 flex flex-col items-center justify-center gap-1 text-[9px] text-wood hover:text-burgundy font-medium uppercase outline-none transition-colors group/btn"
-              title="Đánh dấu báo tử"
-            >
-              <div className="w-7 h-7 rounded-full bg-wood/5 group-hover/btn:bg-burgundy/10 flex items-center justify-center transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4l2-9 5 18 2-9h5"/></svg>
-              </div>
-              Báo tử
-            </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); onAddSpouse?.(memberId); }}
+                className="flex-1 flex flex-col items-center justify-center gap-1 text-[9px] text-wood hover:text-burgundy font-medium uppercase outline-none transition-colors group/btn"
+                title="Thêm Phối ngẫu"
+              >
+                <div className="w-7 h-7 rounded-full bg-wood/5 group-hover/btn:bg-burgundy/10 flex items-center justify-center transition-colors">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="16" y1="11" x2="22" y2="11"/><line x1="19" y1="8" x2="19" y2="14"/></svg>
+                </div>
+                +Phu/Thê
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onAddChild?.(memberId); }}
+                className="flex-1 flex flex-col items-center justify-center gap-1 text-[9px] text-wood hover:text-burgundy font-medium uppercase outline-none transition-colors group/btn"
+                title="Thêm Hậu duệ"
+              >
+                <div className="w-7 h-7 rounded-full bg-wood/5 group-hover/btn:bg-burgundy/10 flex items-center justify-center transition-colors">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                +Hậu duệ
+              </button>
+              {!isDeceased && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onMarkDeceased?.(memberId); }}
+                  className="flex-1 flex flex-col items-center justify-center gap-1 text-[9px] text-wood hover:text-burgundy font-medium uppercase outline-none transition-colors group/btn"
+                  title="Đánh dấu báo tử"
+                >
+                  <div className="w-7 h-7 rounded-full bg-wood/5 group-hover/btn:bg-burgundy/10 flex items-center justify-center transition-colors">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4l2-9 5 18 2-9h5"/></svg>
+                  </div>
+                  Báo tử
+                </button>
+              )}
+            </>
           )}
         </div>
       );
