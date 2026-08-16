@@ -1,6 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { DetailedMember } from '../types/member';
 import { FamilyEvent } from '../types/event';
+import { isLunarDateString, withLunarAnnotation } from '../utils/dateAnnotation';
+
+// Ô nhập ngày dùng chung, kèm lựa chọn Dương lịch / Âm lịch (đánh dấu bằng hậu tố "(Âm lịch)")
+const DateWithCalendarInput: React.FC<{
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}> = ({ label, value, onChange, placeholder }) => {
+  const isLunar = isLunarDateString(value);
+  const rawValue = isLunar ? value.replace(/\s*\(\s*Âm\s*lịch\s*\)\s*/gi, '').trim() : value;
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-wood-dark mb-1">{label}</label>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={rawValue}
+          onChange={e => onChange(withLunarAnnotation(e.target.value, isLunar))}
+          className="flex-1 border rounded p-2 focus:border-bronze outline-none"
+          placeholder={placeholder}
+        />
+        <select
+          value={isLunar ? 'lunar' : 'solar'}
+          onChange={e => onChange(withLunarAnnotation(rawValue, e.target.value === 'lunar'))}
+          className="border rounded p-2 outline-none text-sm bg-white"
+        >
+          <option value="solar">Dương lịch</option>
+          <option value="lunar">Âm lịch</option>
+        </select>
+      </div>
+    </div>
+  );
+};
 
 interface ModalProps {
   isOpen: boolean;
@@ -177,10 +212,12 @@ export const MarkDeceasedModal: React.FC<{
     <Modal isOpen={isOpen} onClose={onClose} title={`Báo Tử: ${targetMember.name}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-gray-600 mb-2">Đánh dấu thành viên này đã qua đời.</p>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Năm mất / Ngày mất (Tuỳ chọn)</label>
-          <input type="text" value={deathDate} onChange={e => setDeathDate(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="Ví dụ: 2024 hoặc 15/08/2024" />
-        </div>
+        <DateWithCalendarInput
+          label="Năm mất / Ngày mất (Tuỳ chọn)"
+          value={deathDate}
+          onChange={setDeathDate}
+          placeholder="Ví dụ: 2024 hoặc 15/08/2024"
+        />
         <button type="submit" disabled={isSubmitting} className="w-full bg-gray-800 hover:bg-black text-white py-2 rounded font-medium transition-colors disabled:opacity-50">
           {isSubmitting ? 'Đang xử lý...' : 'Xác nhận Đã mất'}
         </button>
@@ -279,10 +316,12 @@ export const AddParentModal: React.FC<{
             <option value="female">Nữ (Mẫu thân)</option>
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-wood-dark mb-1">Ngày/Năm sinh (tùy chọn)</label>
-          <input type="text" value={birthDate} onChange={e => setBirthDate(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 1890 hoặc 01/01/1890" />
-        </div>
+        <DateWithCalendarInput
+          label="Ngày/Năm sinh (tùy chọn)"
+          value={birthDate}
+          onChange={setBirthDate}
+          placeholder="VD: 1890 hoặc 01/01/1890"
+        />
         <div className="flex items-center gap-2">
           <input type="checkbox" id="isDeceased" checked={isDeceased} onChange={e => setIsDeceased(e.target.checked)} className="rounded text-burgundy focus:ring-burgundy" />
           <label htmlFor="isDeceased" className="text-sm text-gray-700">Đã khuất</label>
@@ -365,15 +404,23 @@ export const EditMemberModal: React.FC<{
             <option value="female">Nữ</option>
           </select>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-col md:flex-row">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-wood-dark mb-1">Ngày/Năm sinh</label>
-            <input type="text" value={birthDate} onChange={e => setBirthDate(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 1990 hoặc 01/01/1990" />
+            <DateWithCalendarInput
+              label="Ngày/Năm sinh"
+              value={birthDate}
+              onChange={setBirthDate}
+              placeholder="VD: 1990 hoặc 01/01/1990"
+            />
           </div>
           {isDeceased && (
             <div className="flex-1 animate-fade-in">
-              <label className="block text-sm font-medium text-wood-dark mb-1">Ngày/Năm mất</label>
-              <input type="text" value={deathDate} onChange={e => setDeathDate(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 2020" />
+              <DateWithCalendarInput
+                label="Ngày/Năm mất"
+                value={deathDate}
+                onChange={setDeathDate}
+                placeholder="VD: 2020"
+              />
             </div>
           )}
         </div>
@@ -430,6 +477,7 @@ export const AddEventModal: React.FC<{
   const [day, setDay] = useState<number>(1);
   const [month, setMonth] = useState<number>(1);
   const [year, setYear] = useState('');
+  const [isLunar, setIsLunar] = useState(false);
   const [memberId, setMemberId] = useState(defaultMemberId || '');
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -448,6 +496,7 @@ export const AddEventModal: React.FC<{
         day,
         month,
         year: year ? parseInt(year) : undefined,
+        isLunar,
         memberId: memberId || undefined,
         note: note.trim() || undefined,
       });
@@ -455,6 +504,7 @@ export const AddEventModal: React.FC<{
       setDay(1);
       setMonth(1);
       setYear('');
+      setIsLunar(false);
       setMemberId(defaultMemberId || '');
       setNote('');
     } finally {
@@ -479,9 +529,16 @@ export const AddEventModal: React.FC<{
             <input required type="number" min="1" max="12" value={month} onChange={e => setMonth(parseInt(e.target.value) || 1)} className="w-full border rounded p-2 outline-none" />
           </div>
           <div className="flex-1">
-            <label className="block text-sm font-medium text-wood-dark mb-1">Năm (tùy chọn)</label>
-            <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-full border rounded p-2 outline-none" placeholder="VD: 2024" />
+            <label className="block text-sm font-medium text-wood-dark mb-1">Loại lịch</label>
+            <select value={isLunar ? 'lunar' : 'solar'} onChange={e => setIsLunar(e.target.value === 'lunar')} className="w-full border rounded p-2 outline-none bg-white text-sm">
+              <option value="solar">Dương lịch</option>
+              <option value="lunar">Âm lịch</option>
+            </select>
           </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-wood-dark mb-1">Năm (tùy chọn)</label>
+          <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-full border rounded p-2 outline-none" placeholder="VD: 2024" />
         </div>
         <div>
           <label className="block text-sm font-medium text-wood-dark mb-1">Gắn với thành viên (tùy chọn)</label>

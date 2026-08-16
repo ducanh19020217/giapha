@@ -7,6 +7,7 @@ Một ứng dụng web quản lý gia phả dòng họ chuyên nghiệp, hiện 
 - **Cây Phả Hệ Trực Quan:** Vẽ sơ đồ phả hệ nhiều đời tự động. Hỗ trợ hiển thị thành viên gốc, người phối ngẫu (vợ/chồng), con nuôi, con riêng.
 - **Công cụ xưng hô (Kinship Calculator):** Tự động tính toán vai vế và cách xưng hô chuẩn xác giữa 2 thành viên bất kỳ (áp dụng linh hoạt cho cả quan hệ huyết thống và quan hệ qua vợ/chồng chéo thế hệ).
 - **Lịch sự kiện & Báo tử:** Tự động tính toán ngày giỗ, lịch sinh nhật. Quản lý hồ sơ người đã khuất tiện lợi. Admin có thể thêm sự kiện tùy chỉnh (Giỗ Tổ, Họp Họ...) dùng chung cho cả dòng họ hoặc gắn riêng cho một thành viên.
+- **Âm lịch & Dương lịch song song:** Mọi ngày sinh/ngày mất/sự kiện đều có thể nhập theo Dương lịch hoặc Âm lịch; hệ thống tự quy đổi qua lại và hiển thị cả 2 loại lịch trên Lịch Sự Kiện (đúng phong tục: ngày giỗ theo Âm lịch sẽ tự "dời" ngày Dương lịch tương ứng mỗi năm).
 
 ---
 

@@ -4,6 +4,7 @@ export interface FamilyEvent {
   day: number;
   month: number;
   year?: number | null;
+  isLunar?: boolean; // true nếu day/month là ngày Âm lịch (VD: Giỗ Tổ 10/3 Âm lịch)
   memberId?: string;
   note?: string;
 }

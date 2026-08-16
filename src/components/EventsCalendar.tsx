@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { DetailedMember } from '../types/member';
 import { FamilyEvent } from '../types/event';
+import { convertSolar2Lunar, lunarToSolarInYear } from '../utils/lunarCalendar';
 
 interface EventsCalendarProps {
   members: DetailedMember[];
@@ -16,13 +17,26 @@ interface CalendarEvent {
   id?: string;
   member?: DetailedMember;
   title: string;
-  day: number;
-  month: number;
+  solarDay: number;
+  solarMonth: number;
+  lunarDay: number;
+  lunarMonth: number;
+  isLunar: boolean; // ngày gốc được ghi theo Âm lịch hay Dương lịch
   type: EventType;
   note: string;
 }
 
+// Quy ước có sẵn trong app: ghi chú trong ngoặc "(Âm lịch)" đánh dấu ngày sinh/mất là Âm lịch
+const isLunarNote = (note: string) => /âm/i.test(note);
+
 export const EventsCalendar: React.FC<EventsCalendarProps> = ({ members, events, isAdmin, onAddEvent, onDeleteEvent }) => {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const [todayLunarDay, todayLunarMonth, todayLunarYear] = useMemo(
+    () => convertSolar2Lunar(today.getDate(), today.getMonth() + 1, currentYear),
+    [currentYear] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   const eventsByMonth = useMemo(() => {
     const calendarEvents: CalendarEvent[] = [];
 
@@ -53,23 +67,36 @@ export const EventsCalendar: React.FC<EventsCalendarProps> = ({ members, events,
       } else {
         // Look for day and month: dd/mm or d/m using common separators, avoid matching start of year
         // We use \b to ensure it starts at a word boundary, so we don't match the "19" in "1990"
-        const match = dateString.match(/\b(\d{1,2})[\/\-\.](\d{1,2})\b/);
+        const match = dateString.match(/\b(\d{1,2})[/\-.](\d{1,2})\b/);
         if (match) {
           day = parseInt(match[1]);
           month = parseInt(match[2]);
         }
       }
 
-      if (day > 0 && month > 0) {
-        // Extract notes like "(Âm lịch)"
-        const noteMatch = dateString.match(/\((.*?)\)/);
-        const note = noteMatch ? noteMatch[1] : '';
+      if (day < 1 || day > 31 || month < 1 || month > 12) return;
 
-        // Validate day and month
-        if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-          calendarEvents.push({ member, day, month, type, note, title: member.name });
-        }
+      // Extract notes like "(Âm lịch)"
+      const noteMatch = dateString.match(/\((.*?)\)/);
+      const rawNote = noteMatch ? noteMatch[1] : '';
+      const isLunar = rawNote ? isLunarNote(rawNote) : false;
+
+      let solarDay = day, solarMonth = month, lunarDay = day, lunarMonth = month;
+      if (isLunar) {
+        const solar = lunarToSolarInYear(day, month, currentYear);
+        solarDay = solar.day;
+        solarMonth = solar.month;
+      } else {
+        const [ld, lm] = convertSolar2Lunar(day, month, currentYear);
+        lunarDay = ld;
+        lunarMonth = lm;
       }
+
+      calendarEvents.push({
+        member, type, title: member.name,
+        solarDay, solarMonth, lunarDay, lunarMonth, isLunar,
+        note: isLunar ? '' : rawNote, // đã thể hiện qua nhãn ÂL, không lặp lại trong ghi chú
+      });
     };
 
     members.forEach(member => {
@@ -85,43 +112,57 @@ export const EventsCalendar: React.FC<EventsCalendarProps> = ({ members, events,
     events.forEach(ev => {
       if (!ev.day || !ev.month) return;
       const linkedMember = ev.memberId ? members.find(m => m.id === ev.memberId) : undefined;
+
+      let solarDay = ev.day, solarMonth = ev.month, lunarDay = ev.day, lunarMonth = ev.month;
+      if (ev.isLunar) {
+        const solar = lunarToSolarInYear(ev.day, ev.month, currentYear);
+        solarDay = solar.day;
+        solarMonth = solar.month;
+      } else {
+        const [ld, lm] = convertSolar2Lunar(ev.day, ev.month, currentYear);
+        lunarDay = ld;
+        lunarMonth = lm;
+      }
+
       calendarEvents.push({
         id: ev.id,
         member: linkedMember,
         title: ev.title + (linkedMember ? ` (${linkedMember.name})` : ''),
-        day: ev.day,
-        month: ev.month,
+        solarDay, solarMonth, lunarDay, lunarMonth,
+        isLunar: !!ev.isLunar,
         type: 'CUSTOM',
         note: ev.note || '',
       });
     });
 
-    // Initialize 12 months
+    // Initialize 12 months (nhóm theo tháng Dương lịch thực tế của năm hiện tại)
     const grouped: { [key: number]: CalendarEvent[] } = {};
     for (let i = 1; i <= 12; i++) {
       grouped[i] = [];
     }
 
-    // Group and sort
     calendarEvents.forEach(ev => {
-      grouped[ev.month].push(ev);
+      grouped[ev.solarMonth].push(ev);
     });
 
     for (let i = 1; i <= 12; i++) {
-      grouped[i].sort((a, b) => a.day - b.day);
+      grouped[i].sort((a, b) => a.solarDay - b.solarDay);
     }
 
     return grouped;
-  }, [members, events]);
+  }, [members, events, currentYear]);
 
   // Current month highlight
-  const currentMonth = new Date().getMonth() + 1;
+  const currentMonth = today.getMonth() + 1;
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8">
-      <h2 className="text-3xl md:text-4xl font-serif text-burgundy mb-8 text-center font-bold tracking-wide">
+      <h2 className="text-3xl md:text-4xl font-serif text-burgundy mb-3 text-center font-bold tracking-wide">
         Lịch Sự Kiện Gia Phả
       </h2>
+      <p className="text-center text-sm text-wood-dark/80 mb-8 font-serif italic">
+        Hôm nay: {today.getDate()}/{today.getMonth() + 1}/{currentYear} (Dương lịch) — Ngày {todayLunarDay} tháng {todayLunarMonth} năm {todayLunarYear} (Âm lịch)
+      </p>
 
       <div className="flex flex-wrap justify-center items-center gap-6 mb-10 text-sm md:text-base font-medium">
         <div className="flex items-center gap-2">
@@ -172,17 +213,19 @@ export const EventsCalendar: React.FC<EventsCalendarProps> = ({ members, events,
                     {monthEvents.map((ev, i) => (
                       <li key={ev.id || i} className={`p-3 rounded-lg border flex gap-3 ${ev.type === 'DEATH' ? 'bg-wood-light/10 border-wood/20' : ev.type === 'CUSTOM' ? 'bg-burgundy/5 border-burgundy/20' : 'bg-orange-50 border-orange-200/50'}`}>
                         <div className={`font-bold text-lg flex flex-col items-center justify-center min-w-[3rem] ${ev.type === 'DEATH' ? 'text-wood-dark' : ev.type === 'CUSTOM' ? 'text-burgundy' : 'text-orange-600'}`}>
-                          <span>{ev.day}</span>
+                          <span>{ev.solarDay}</span>
                         </div>
                         <div className="flex-1">
                           <p className="font-semibold text-gray-800 text-sm">
                             {ev.type === 'DEATH' ? 'Giỗ: ' : ev.type === 'BIRTHDAY' ? 'SN: ' : ''}
                             {ev.type === 'CUSTOM' ? ev.title : ev.member?.name}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {ev.type === 'DEATH' && ev.member ? 'Đời thứ ' + ev.member.generation : ''}
-                            {ev.type === 'BIRTHDAY' && ev.member?.birthDate ? 'Sinh năm ' + (String(ev.member.birthDate).match(/\d{4}/)?.[0] || '?') : ''}
-                            {ev.note && <span className="ml-1 text-burgundy/80 font-medium italic">({ev.note})</span>}
+                          <p className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                            <span className={ev.isLunar ? 'font-semibold text-burgundy' : ''}>ÂL {ev.lunarDay}/{ev.lunarMonth}</span>
+                            <span className={!ev.isLunar ? 'font-semibold text-burgundy' : ''}>DL {ev.solarDay}/{ev.solarMonth}</span>
+                            {ev.type === 'DEATH' && ev.member && <span>· Đời thứ {ev.member.generation}</span>}
+                            {ev.type === 'BIRTHDAY' && ev.member?.birthDate && <span>· Sinh năm {String(ev.member.birthDate).match(/\d{4}/)?.[0] || '?'}</span>}
+                            {ev.note && <span className="text-burgundy/80 font-medium italic">({ev.note})</span>}
                           </p>
                         </div>
                         {isAdmin && ev.type === 'CUSTOM' && ev.id && (
