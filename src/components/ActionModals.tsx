@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DetailedMember } from '../types/member';
+import { FamilyEvent } from '../types/event';
 
 interface ModalProps {
   isOpen: boolean;
@@ -411,6 +412,92 @@ export const EditMemberModal: React.FC<{
         </div>
         <button type="submit" disabled={isSubmitting} className="w-full bg-burgundy hover:bg-burgundy-dark text-white py-2 rounded font-medium transition-colors disabled:opacity-50">
           {isSubmitting ? 'Đang xử lý...' : 'Lưu Thay Đổi'}
+        </button>
+      </form>
+    </Modal>
+  );
+};
+
+// --- MODAL THÊM SỰ KIỆN ---
+export const AddEventModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: Partial<FamilyEvent>) => Promise<void> | void;
+  allMembers: DetailedMember[];
+  defaultMemberId?: string;
+}> = ({ isOpen, onClose, onSave, allMembers, defaultMemberId }) => {
+  const [title, setTitle] = useState('');
+  const [day, setDay] = useState<number>(1);
+  const [month, setMonth] = useState<number>(1);
+  const [year, setYear] = useState('');
+  const [memberId, setMemberId] = useState(defaultMemberId || '');
+  const [note, setNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMemberId(defaultMemberId || '');
+  }, [defaultMemberId, isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await onSave({
+        title: title.trim(),
+        day,
+        month,
+        year: year ? parseInt(year) : undefined,
+        memberId: memberId || undefined,
+        note: note.trim() || undefined,
+      });
+      setTitle('');
+      setDay(1);
+      setMonth(1);
+      setYear('');
+      setMemberId(defaultMemberId || '');
+      setNote('');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Thêm Sự Kiện">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-wood-dark mb-1">Tên sự kiện</label>
+          <input required type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: Giỗ Tổ, Họp Họ đầu năm..." />
+        </div>
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-wood-dark mb-1">Ngày</label>
+            <input required type="number" min="1" max="31" value={day} onChange={e => setDay(parseInt(e.target.value) || 1)} className="w-full border rounded p-2 outline-none" />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-wood-dark mb-1">Tháng</label>
+            <input required type="number" min="1" max="12" value={month} onChange={e => setMonth(parseInt(e.target.value) || 1)} className="w-full border rounded p-2 outline-none" />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-wood-dark mb-1">Năm (tùy chọn)</label>
+            <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-full border rounded p-2 outline-none" placeholder="VD: 2024" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-wood-dark mb-1">Gắn với thành viên (tùy chọn)</label>
+          <select value={memberId} onChange={e => setMemberId(e.target.value)} className="w-full border rounded p-2 outline-none">
+            <option value="">Sự kiện chung của dòng họ</option>
+            {allMembers.map(m => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-wood-dark mb-1">Ghi chú (tùy chọn)</label>
+          <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className="w-full border rounded p-2 outline-none" placeholder="VD: Tổ chức tại nhà thờ họ lúc 8h sáng"></textarea>
+        </div>
+        <button type="submit" disabled={isSubmitting} className="w-full bg-burgundy hover:bg-burgundy-dark text-white py-2 rounded font-medium transition-colors disabled:opacity-50">
+          {isSubmitting ? 'Đang xử lý...' : 'Lưu Sự Kiện'}
         </button>
       </form>
     </Modal>

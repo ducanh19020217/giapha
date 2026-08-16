@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { HomePage } from './components/HomePage'
-import { AddSpouseModal, AddChildModal, MarkDeceasedModal, AddRootModal, EditMemberModal, AddParentModal } from './components/ActionModals'
+import { AddSpouseModal, AddChildModal, MarkDeceasedModal, AddRootModal, EditMemberModal, AddParentModal, AddEventModal } from './components/ActionModals'
 import { FamilyTree } from './components/FamilyTree'
 import { ProfilePage } from './components/ProfilePage'
 import { KinshipCalculator } from './components/KinshipCalculator'
@@ -9,6 +9,7 @@ import { EventsCalendar } from './components/EventsCalendar'
 import { LoginModal } from './components/LoginModal'
 import { useAuth } from './context/AuthContext'
 import { DetailedMember } from './types/member'
+import { FamilyEvent } from './types/event'
 import * as api from './services/api'
 import { getMembers, addMember, addSpouse, markDeceased, updateMember, deleteMember } from './services/api'
 // Khởi tạo ID ngẫu nhiên đơn giản
@@ -58,6 +59,7 @@ const INITIAL_MEMBERS: DetailedMember[] = [
 
 function App() {
   const [members, setMembers] = useState<DetailedMember[]>([]);
+  const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [isFetching, setIsFetching] = useState(true);
   
@@ -75,6 +77,8 @@ function App() {
   const [isRootModalOpen, setRootModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isParentModalOpen, setParentModalOpen] = useState(false);
+  const [isEventModalOpen, setEventModalOpen] = useState(false);
+  const [eventModalDefaultMemberId, setEventModalDefaultMemberId] = useState<string | undefined>(undefined);
 
   const fetchMembers = async () => {
     setIsFetching(true);
@@ -88,8 +92,18 @@ function App() {
     }
   };
 
+  const fetchEventsData = async () => {
+    try {
+      const data = await api.fetchEvents();
+      setEvents(data);
+    } catch (error) {
+      console.error('Failed to fetch events:', error);
+    }
+  };
+
   useEffect(() => {
     fetchMembers();
+    fetchEventsData();
   }, []);
 
   const selectedMember = members.find(m => m.id === selectedMemberId);
@@ -214,6 +228,28 @@ function App() {
     }
   };
 
+  const handleAddEvent = async (data: Partial<FamilyEvent>) => {
+    try {
+      await api.addEvent(data);
+      await fetchEventsData();
+      setEventModalOpen(false);
+    } catch (error) {
+      console.error('Failed to add event:', error);
+      alert('Lỗi khi thêm sự kiện: ' + error);
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!window.confirm('Bạn có chắc muốn xóa sự kiện này?')) return;
+    try {
+      await api.deleteEvent(id);
+      await fetchEventsData();
+    } catch (error) {
+      console.error('Failed to delete event:', error);
+      alert('Lỗi khi xóa sự kiện: ' + error);
+    }
+  };
+
   return (
     <>
       <Routes>
@@ -301,7 +337,13 @@ function App() {
 
                 <Route path="events" element={
                   <div className="mt-4">
-                    <EventsCalendar members={members} />
+                    <EventsCalendar
+                      members={members}
+                      events={events}
+                      isAdmin={isAdmin}
+                      onAddEvent={() => { setEventModalDefaultMemberId(undefined); setEventModalOpen(true); }}
+                      onDeleteEvent={handleDeleteEvent}
+                    />
                   </div>
                 } />
               </Routes>
@@ -320,13 +362,16 @@ function App() {
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setLoginModalOpen(false)} />
 
       {selectedMember && (
-        <ProfilePage 
-          member={selectedMember} 
-          allMembers={members} 
+        <ProfilePage
+          member={selectedMember}
+          allMembers={members}
+          events={events}
           onAddSpouse={() => setSpouseModalOpen(true)}
           onAddChild={() => setChildModalOpen(true)}
           onAddParent={() => setParentModalOpen(true)}
           onMarkDeceased={() => setDeceasedModalOpen(true)}
+          onAddEvent={() => { setEventModalDefaultMemberId(selectedMember.id); setEventModalOpen(true); }}
+          onDeleteEvent={handleDeleteEvent}
           onEdit={() => setEditModalOpen(true)}
           onDelete={() => handleDeleteMember(selectedMember.id)}
           isAdmin={isAdmin}
@@ -334,10 +379,18 @@ function App() {
         />
       )}
 
-      <AddRootModal 
-        isOpen={isRootModalOpen} 
-        onClose={() => setRootModalOpen(false)} 
-        onSave={handleAddRoot} 
+      <AddRootModal
+        isOpen={isRootModalOpen}
+        onClose={() => setRootModalOpen(false)}
+        onSave={handleAddRoot}
+      />
+
+      <AddEventModal
+        isOpen={isEventModalOpen}
+        onClose={() => setEventModalOpen(false)}
+        onSave={handleAddEvent}
+        allMembers={members}
+        defaultMemberId={eventModalDefaultMemberId}
       />
       
       {selectedMember && (

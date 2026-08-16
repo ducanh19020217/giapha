@@ -1,4 +1,5 @@
 import { DetailedMember } from '../types/member';
+import { FamilyEvent } from '../types/event';
 
 // Chờ người dùng điền URL Web App của Google Apps Script vào đây (hoặc .env)
 const SCRIPT_URL = import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/YOUR_WEB_APP_ID/exec';
@@ -6,7 +7,7 @@ const SCRIPT_URL = import.meta.env.VITE_GAS_URL || 'https://script.google.com/ma
 const callGas = async (action: string, data?: any) => {
   if (SCRIPT_URL.includes('YOUR_WEB_APP_ID')) {
     console.warn("Vui lòng điền Web App URL của Google Apps Script vào file src/services/api.ts hoặc biến môi trường VITE_GAS_URL.");
-    if (action === 'GET_MEMBERS') return [];
+    if (action === 'GET_MEMBERS' || action === 'GET_EVENTS') return [];
   }
 
   // Lấy token (mật khẩu) đã được lưu ở frontend khi đăng nhập
@@ -55,6 +56,18 @@ export const updateMemberDetails = async (id: string, data: Partial<DetailedMemb
 
 export const deleteMember = async (id: string): Promise<void> => {
   return await callGas('DELETE_MEMBER', { id });
+};
+
+export const fetchEvents = async (): Promise<FamilyEvent[]> => {
+  return await callGas('GET_EVENTS');
+};
+
+export const addEvent = async (data: Partial<FamilyEvent>): Promise<FamilyEvent> => {
+  return await callGas('ADD_EVENT', data);
+};
+
+export const deleteEvent = async (id: string): Promise<void> => {
+  return await callGas('DELETE_EVENT', { id });
 };
 
 // Aliases for compatibility with App.tsx if it uses old function names

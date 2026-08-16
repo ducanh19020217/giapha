@@ -6,7 +6,7 @@ Một ứng dụng web quản lý gia phả dòng họ chuyên nghiệp, hiện 
 - **Giao diện Premium (Rich Aesthetics):** Thiết kế Glassmorphism sang trọng, tông màu vàng đồng/gỗ cổ điển phù hợp với tính trang nghiêm của gia phả.
 - **Cây Phả Hệ Trực Quan:** Vẽ sơ đồ phả hệ nhiều đời tự động. Hỗ trợ hiển thị thành viên gốc, người phối ngẫu (vợ/chồng), con nuôi, con riêng.
 - **Công cụ xưng hô (Kinship Calculator):** Tự động tính toán vai vế và cách xưng hô chuẩn xác giữa 2 thành viên bất kỳ (áp dụng linh hoạt cho cả quan hệ huyết thống và quan hệ qua vợ/chồng chéo thế hệ).
-- **Lịch sự kiện & Báo tử:** Tự động tính toán ngày giỗ, lịch sinh nhật. Quản lý hồ sơ người đã khuất tiện lợi.
+- **Lịch sự kiện & Báo tử:** Tự động tính toán ngày giỗ, lịch sinh nhật. Quản lý hồ sơ người đã khuất tiện lợi. Admin có thể thêm sự kiện tùy chỉnh (Giỗ Tổ, Họp Họ...) dùng chung cho cả dòng họ hoặc gắn riêng cho một thành viên.
 
 ---
 
@@ -70,7 +70,7 @@ Vì Backend chạy trên Google Apps Script, nó vẫn hoạt động được t
 1. **Điền email liên hệ:** Mở hồ sơ một thành viên trên web (cần đăng nhập Admin) > **Sửa hồ sơ** > điền vào ô **Email liên hệ**. Ai có điền email sẽ nhận được thư nhắc lịch.
    - Nếu Sheet của bạn được tạo **trước khi** có tính năng này, hãy mở Apps Script editor, chọn hàm `ensureEmailColumn` ở dropdown trên thanh công cụ rồi bấm **Run** (chỉ 1 lần) để thêm cột `email` vào Sheet `Members`.
 2. **Bật gửi tự động:** Trong Apps Script editor, chọn hàm `createDailyReminderTrigger` ở dropdown rồi bấm **Run** (chỉ 1 lần). Lần đầu chạy, Google sẽ yêu cầu cấp quyền gửi email thay bạn — chọn tài khoản > `Advanced` > `Go to...` > `Allow`.
-3. Từ đó, mỗi ngày lúc khoảng 7h sáng, hệ thống sẽ tự kiểm tra và gửi email tới tất cả người có điền email nếu có sinh nhật/ngày giỗ nào trong vòng 3 ngày tới (chỉnh hằng số `REMINDER_DAYS_AHEAD` trong `backend_script.gs` nếu muốn đổi số ngày).
+3. Từ đó, mỗi ngày lúc khoảng 7h sáng, hệ thống sẽ tự kiểm tra và gửi email tới tất cả người có điền email nếu có sinh nhật/ngày giỗ/sự kiện tùy chỉnh (Giỗ Tổ, Họp Họ...) nào trong vòng 3 ngày tới (chỉnh hằng số `REMINDER_DAYS_AHEAD` trong `backend_script.gs` nếu muốn đổi số ngày).
 4. Muốn gửi thử ngay để kiểm tra: chọn hàm `checkAndSendReminders` rồi bấm **Run**.
 
 *(Lưu ý: Gmail cá nhân giới hạn ~100 email/ngày; tài khoản Google Workspace giới hạn ~1500 email/ngày — thừa sức cho quy mô một dòng họ.)*

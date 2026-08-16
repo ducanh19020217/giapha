@@ -1,31 +1,39 @@
 import React from 'react';
 import { DetailedMember } from '../types/member';
+import { FamilyEvent } from '../types/event';
 
 interface ProfilePageProps {
   member: DetailedMember;
   allMembers: DetailedMember[];
+  events?: FamilyEvent[];
   onAddSpouse?: () => void;
   onAddChild?: () => void;
   onAddParent?: () => void;
   onMarkDeceased?: () => void;
+  onAddEvent?: () => void;
+  onDeleteEvent?: (id: string) => void;
   onEdit?: () => void;
   onDelete?: () => void;
   isAdmin?: boolean;
   onClose?: () => void;
 }
 
-export const ProfilePage: React.FC<ProfilePageProps> = ({ 
-  member, 
+export const ProfilePage: React.FC<ProfilePageProps> = ({
+  member,
   allMembers,
+  events,
   onAddSpouse,
   onAddChild,
   onAddParent,
   onMarkDeceased,
+  onAddEvent,
+  onDeleteEvent,
   onEdit,
   onDelete,
   isAdmin,
   onClose
 }) => {
+  const memberEvents = (events || []).filter(e => e.memberId === member.id);
   // Trạng thái cho Confirmation Modal xóa
   const [isDeleting, setIsDeleting] = React.useState(false);
   // Lọc ra danh sách con cái
@@ -92,6 +100,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             )}
             <button onClick={onAddChild} className="bg-white/10 hover:bg-white hover:text-wood-dark text-white px-3 py-1.5 rounded text-[10px] font-serif uppercase tracking-wider transition-colors border border-white/20">
               + Hậu duệ
+            </button>
+            <button onClick={onAddEvent} className="bg-white/10 hover:bg-white hover:text-wood-dark text-white px-3 py-1.5 rounded text-[10px] font-serif uppercase tracking-wider transition-colors border border-white/20">
+              + Sự kiện
             </button>
             {!member.isDeceased && (
               <button onClick={onMarkDeceased} className="bg-white/10 hover:bg-white hover:text-wood-dark text-white px-3 py-1.5 rounded text-[10px] font-serif uppercase tracking-wider transition-colors border border-white/20">
@@ -203,6 +214,30 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <p className="text-sm text-gray-500 italic font-serif">Chưa cập nhật</p>
             )}
           </section>
+
+          {memberEvents.length > 0 && (
+            <section>
+              <h3 className="text-base text-wood font-semibold mb-2 flex items-center gap-2 font-serif">
+                <span className="w-1.5 h-4 bg-burgundy rounded-full block"></span> Sự kiện khác
+              </h3>
+              <ul className="space-y-2 text-sm text-gray-700">
+                {memberEvents.map(ev => (
+                  <li key={ev.id} className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-medium text-wood-dark">{ev.title}</span>
+                      <span className="text-xs opacity-70 ml-1">({ev.day}/{ev.month}{ev.year ? '/' + ev.year : ''})</span>
+                      {ev.note && <p className="text-xs text-gray-500 italic">{ev.note}</p>}
+                    </div>
+                    {isAdmin && (
+                      <button onClick={() => onDeleteEvent?.(ev.id)} className="text-gray-400 hover:text-red-500 text-sm flex-shrink-0" title="Xóa sự kiện">
+                        &times;
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       </div>
     </div>

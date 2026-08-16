@@ -11,13 +11,14 @@ function doPost(e) {
     const data = payload.data;
     const password = payload.password;
     
-    // Authentication Check
-    if (action !== 'GET_MEMBERS' && password !== ADMIN_PASSWORD) {
+    // Authentication Check (GET_MEMBERS và GET_EVENTS công khai để hiển thị Trang Chủ/Lịch sự kiện)
+    const PUBLIC_ACTIONS = ['GET_MEMBERS', 'GET_EVENTS'];
+    if (PUBLIC_ACTIONS.indexOf(action) === -1 && password !== ADMIN_PASSWORD) {
       throw new Error('Unauthorized: Sai mật khẩu quản trị!');
     }
-    
+
     let result = null;
-    
+
     switch (action) {
       case 'GET_MEMBERS':
         result = getMembers();
@@ -39,6 +40,15 @@ function doPost(e) {
         break;
       case 'DELETE_MEMBER':
         result = deleteMember(data);
+        break;
+      case 'GET_EVENTS':
+        result = getEvents();
+        break;
+      case 'ADD_EVENT':
+        result = addEvent(data);
+        break;
+      case 'DELETE_EVENT':
+        result = deleteEvent(data);
         break;
       default:
         throw new Error('Unknown action: ' + action);
@@ -77,6 +87,8 @@ function getSheet(sheetName) {
       sheet.appendRow(['id', 'name', 'gender', 'birthDate', 'isDeceased', 'deathDate', 'generation', 'birthOrder', 'fatherId', 'motherId', 'relationType', 'avatarUrl', 'academicLevel', 'career', 'biography', 'email']);
     } else if (sheetName === 'Spouses') {
       sheet.appendRow(['id', 'memberId', 'spouseId', 'isPrimary', 'order']);
+    } else if (sheetName === 'Events') {
+      sheet.appendRow(['id', 'title', 'day', 'month', 'year', 'memberId', 'note']);
     }
   }
   return sheet;
@@ -392,6 +404,59 @@ function deleteMember(data) {
 }
 
 // ==========================================
+// SỰ KIỆN GIA PHẢ (Giỗ Tổ, Họp Họ, hoặc ngày kỷ niệm riêng của 1 thành viên)
+// ==========================================
+// memberId rỗng => sự kiện chung của cả dòng họ. memberId có giá trị => gắn với 1 thành viên cụ thể.
+
+function getEvents() {
+  const events = sheetToObjects('Events');
+  events.forEach(ev => {
+    ev.day = parseInt(ev.day) || 0;
+    ev.month = parseInt(ev.month) || 0;
+    ev.year = ev.year ? parseInt(ev.year) : null;
+  });
+  return events;
+}
+
+function addEvent(data) {
+  const sheet = getSheet('Events');
+  const newEvent = {
+    id: generateUUID(),
+    title: data.title || '',
+    day: data.day || 1,
+    month: data.month || 1,
+    year: data.year || '',
+    memberId: data.memberId || '',
+    note: data.note || ''
+  };
+
+  sheet.appendRow([
+    newEvent.id, newEvent.title, newEvent.day, newEvent.month,
+    newEvent.year, newEvent.memberId, newEvent.note
+  ]);
+
+  return newEvent;
+}
+
+function deleteEvent(data) {
+  const targetId = data.id;
+  if (!targetId) throw new Error("Missing event ID");
+
+  const sheet = getSheet('Events');
+  const values = sheet.getDataRange().getValues();
+  const newValues = values.filter((row, i) => i === 0 || row[0] !== targetId);
+
+  if (newValues.length === values.length) {
+    throw new Error("Event not found");
+  }
+
+  sheet.getDataRange().clearContent();
+  sheet.getRange(1, 1, newValues.length, newValues[0].length).setValues(newValues);
+
+  return { success: true, id: targetId };
+}
+
+// ==========================================
 // NHẮC LỊCH GIỖ / SINH NHẬT QUA EMAIL
 // ==========================================
 // Cách kích hoạt: mở file này trong Apps Script editor, chọn hàm
@@ -435,7 +500,7 @@ function daysUntilNextOccurrence(day, month, today) {
 function buildReminderEmailBody(upcomingEvents) {
   const rows = upcomingEvents.map(function (ev) {
     const when = ev.daysUntil === 0 ? 'Hôm nay' : (ev.daysUntil === 1 ? 'Ngày mai' : 'Còn ' + ev.daysUntil + ' ngày');
-    return '<li><b>' + ev.label + '</b> — ' + ev.member.name + ' (' + ev.day + '/' + ev.month + ') — ' + when + '</li>';
+    return '<li><b>' + ev.title + '</b> (' + ev.day + '/' + ev.month + ') — ' + when + '</li>';
   }).join('');
 
   return '<div style="font-family: Georgia, serif; color: #4a3728;">' +
@@ -457,6 +522,7 @@ function checkAndSendReminders() {
     return;
   }
 
+  const events = getEvents();
   const today = new Date();
   const upcoming = [];
 
@@ -466,7 +532,7 @@ function checkAndSendReminders() {
       if (dm) {
         const daysUntil = daysUntilNextOccurrence(dm.day, dm.month, today);
         if (daysUntil >= 0 && daysUntil <= REMINDER_DAYS_AHEAD) {
-          upcoming.push({ member: member, label: 'Sinh nhật', day: dm.day, month: dm.month, daysUntil: daysUntil });
+          upcoming.push({ title: 'Sinh nhật - ' + member.name, day: dm.day, month: dm.month, daysUntil: daysUntil });
         }
       }
     }
@@ -475,9 +541,19 @@ function checkAndSendReminders() {
       if (dm) {
         const daysUntil = daysUntilNextOccurrence(dm.day, dm.month, today);
         if (daysUntil >= 0 && daysUntil <= REMINDER_DAYS_AHEAD) {
-          upcoming.push({ member: member, label: 'Ngày giỗ', day: dm.day, month: dm.month, daysUntil: daysUntil });
+          upcoming.push({ title: 'Ngày giỗ - ' + member.name, day: dm.day, month: dm.month, daysUntil: daysUntil });
         }
       }
+    }
+  });
+
+  events.forEach(function (ev) {
+    if (!ev.day || !ev.month) return;
+    const daysUntil = daysUntilNextOccurrence(ev.day, ev.month, today);
+    if (daysUntil >= 0 && daysUntil <= REMINDER_DAYS_AHEAD) {
+      const linkedMember = ev.memberId ? members.find(function (m) { return m.id === ev.memberId; }) : null;
+      const title = linkedMember ? ev.title + ' - ' + linkedMember.name : ev.title;
+      upcoming.push({ title: title, day: ev.day, month: ev.month, daysUntil: daysUntil });
     }
   });
 
