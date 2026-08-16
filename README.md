@@ -8,6 +8,7 @@ Một ứng dụng web quản lý gia phả dòng họ chuyên nghiệp, hiện 
 - **Công cụ xưng hô (Kinship Calculator):** Tự động tính toán vai vế và cách xưng hô chuẩn xác giữa 2 thành viên bất kỳ (áp dụng linh hoạt cho cả quan hệ huyết thống và quan hệ qua vợ/chồng chéo thế hệ).
 - **Lịch sự kiện & Báo tử:** Tự động tính toán ngày giỗ, lịch sinh nhật. Quản lý hồ sơ người đã khuất tiện lợi. Admin có thể thêm sự kiện tùy chỉnh (Giỗ Tổ, Họp Họ...) dùng chung cho cả dòng họ hoặc gắn riêng cho một thành viên.
 - **Âm lịch & Dương lịch song song:** Mọi ngày sinh/ngày mất/sự kiện đều có thể nhập theo Dương lịch hoặc Âm lịch; hệ thống tự quy đổi qua lại và hiển thị cả 2 loại lịch trên Lịch Sự Kiện (đúng phong tục: ngày giỗ theo Âm lịch sẽ tự "dời" ngày Dương lịch tương ứng mỗi năm).
+- **Ảnh đại diện lưu trên Google Drive:** Admin upload ảnh trực tiếp từ trang hồ sơ; ảnh được tự động resize xuống ~500px (WebP, hoặc JPEG nếu trình duyệt cũ không hỗ trợ) rồi lưu vào thư mục `GiaPha_Avatars` trên Drive của tài khoản đang chạy Script — không cần dịch vụ lưu trữ ảnh bên ngoài.
 
 ---
 
@@ -35,6 +36,8 @@ Một ứng dụng web quản lý gia phả dòng họ chuyên nghiệp, hiện 
 7. Triển khai hoàn tất, hãy **Copy URL Ứng dụng web (Web app URL)**. Trông nó sẽ giống như thế này: `https://script.google.com/macros/s/AKfycb.../exec`.
 
 *(Lưu ý quan trọng: Mỗi khi bạn sửa code trong Apps Script, bạn BẮT BUỘC phải thực hiện lại quy trình Triển khai mới (New deployment) thì các thay đổi mới có hiệu lực).*
+
+*(Lưu ý về quyền: tính năng upload ảnh đại diện dùng Google Drive, nên khi Triển khai mới sau khi thêm code này, Google có thể yêu cầu cấp quyền lần nữa (Authorize access) — làm tương tự bước `Advanced` -> `Go to...` -> `Allow` ở trên.)*
 
 ### Bước 3: Cấu hình Frontend (Máy tính của bạn)
 1. Mở Terminal/Command Prompt, tải dự án về máy:

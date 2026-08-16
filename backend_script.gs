@@ -50,6 +50,9 @@ function doPost(e) {
       case 'DELETE_EVENT':
         result = deleteEvent(data);
         break;
+      case 'UPLOAD_AVATAR':
+        result = uploadAvatar(data);
+        break;
       default:
         throw new Error('Unknown action: ' + action);
     }
@@ -456,6 +459,38 @@ function deleteEvent(data) {
   sheet.getRange(1, 1, newValues.length, newValues[0].length).setValues(newValues);
 
   return { success: true, id: targetId };
+}
+
+// ==========================================
+// ẢNH ĐẠI DIỆN (Lưu trên Google Drive, cùng tài khoản với Sheet)
+// ==========================================
+
+const AVATAR_FOLDER_NAME = 'GiaPha_Avatars';
+
+// Lấy (hoặc tạo mới nếu chưa có) thư mục Drive dùng riêng để chứa ảnh đại diện
+function getAvatarFolder_() {
+  const folders = DriveApp.getFoldersByName(AVATAR_FOLDER_NAME);
+  if (folders.hasNext()) {
+    return folders.next();
+  }
+  return DriveApp.createFolder(AVATAR_FOLDER_NAME);
+}
+
+// data: { base64, mimeType } (đã được resize/nén phía trình duyệt trước khi gửi lên)
+function uploadAvatar(data) {
+  if (!data || !data.base64) throw new Error('Thiếu dữ liệu ảnh');
+
+  const mimeType = data.mimeType || 'image/jpeg';
+  const ext = mimeType === 'image/webp' ? 'webp' : (mimeType === 'image/png' ? 'png' : 'jpg');
+  const bytes = Utilities.base64Decode(data.base64);
+  const blob = Utilities.newBlob(bytes, mimeType, 'avatar_' + Date.now() + '.' + ext);
+
+  const folder = getAvatarFolder_();
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  const url = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w500';
+  return { url: url };
 }
 
 // ==========================================

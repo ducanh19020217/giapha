@@ -70,6 +70,10 @@ export const deleteEvent = async (id: string): Promise<void> => {
   return await callGas('DELETE_EVENT', { id });
 };
 
+export const uploadAvatar = async (base64: string, mimeType: string): Promise<{ url: string }> => {
+  return await callGas('UPLOAD_AVATAR', { base64, mimeType });
+};
+
 // Aliases for compatibility with App.tsx if it uses old function names
 export const getMembers = fetchMembers;
 export const updateMember = updateMemberDetails;

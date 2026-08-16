@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { DetailedMember } from '../types/member';
 import { FamilyEvent } from '../types/event';
 import { DateWithCalendarInput } from './ActionModals';
+import { resizeImageToBase64 } from '../utils/imageUpload';
+import { uploadAvatar } from '../services/api';
 
 interface ProfilePageProps {
   member: DetailedMember;
@@ -49,10 +51,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [academicLevel, setAcademicLevel] = useState(member.academicLevel || '');
   const [biography, setBiography] = useState(member.biography || '');
   const [email, setEmail] = useState(member.email || '');
+  const [avatarUrl, setAvatarUrl] = useState(member.avatarUrl || '');
   const [birthOrder, setBirthOrder] = useState(member.birthOrder || 1);
   const [relationType, setRelationType] = useState(member.relationType || 'BIOLOGICAL');
   const [isDeceased, setIsDeceased] = useState(member.isDeceased || false);
   const [deathDate, setDeathDate] = useState(member.deathDate || '');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Đổi người xem hồ sơ thì thoát chế độ sửa và nạp lại dữ liệu form
   useEffect(() => {
@@ -64,6 +69,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setAcademicLevel(member.academicLevel || '');
     setBiography(member.biography || '');
     setEmail(member.email || '');
+    setAvatarUrl(member.avatarUrl || '');
     setBirthOrder(member.birthOrder || 1);
     setRelationType(member.relationType || 'BIOLOGICAL');
     setIsDeceased(member.isDeceased || false);
@@ -75,7 +81,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setIsSubmittingEdit(true);
     try {
       await onSaveEdit?.({
-        name, gender, birthDate, career, academicLevel, biography, email,
+        name, gender, birthDate, career, academicLevel, biography, email, avatarUrl,
         birthOrder, relationType, isDeceased, deathDate,
       });
       setIsEditing(false);
@@ -83,6 +89,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       // Lỗi đã được báo cho người dùng ở nơi gọi; giữ nguyên form để sửa lại
     } finally {
       setIsSubmittingEdit(false);
+    }
+  };
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    try {
+      const { base64, mimeType } = await resizeImageToBase64(file);
+      const { url } = await uploadAvatar(base64, mimeType);
+      setAvatarUrl(url);
+    } catch (err) {
+      alert('Lỗi khi tải ảnh lên: ' + err);
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
   };
 
@@ -165,6 +187,34 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         {isEditing ? (
           <form onSubmit={handleEditSubmit} className="p-5 md:p-8 space-y-5">
+            <div className="flex flex-col items-center gap-2">
+              <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-bronze/40 bg-wood-light flex-shrink-0">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-2xl text-wood/40">
+                    {name.charAt(0)}
+                  </div>
+                )}
+                {isUploadingAvatar && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+              <label className="text-sm text-burgundy hover:text-burgundy-dark underline cursor-pointer font-medium">
+                Đổi ảnh đại diện
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={isUploadingAvatar}
+                  onChange={handleAvatarFileChange}
+                />
+              </label>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
               <div>
                 <label className="block text-sm font-medium text-wood-dark mb-1">Họ tên</label>
