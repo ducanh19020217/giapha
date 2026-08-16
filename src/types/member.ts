@@ -7,6 +7,7 @@ export interface DetailedMember {
   deathDate?: string;
   burialPlace?: string;
   avatarUrl?: string;       // Ảnh chân dung
+  email?: string;           // Email liên hệ, dùng để gửi nhắc lịch giỗ/sinh nhật
   
   // Thông tin tiểu sử chuyên sâu
   academicLevel?: string;   // Học hàm, học vị (Tiến sĩ, Thạc sĩ...)

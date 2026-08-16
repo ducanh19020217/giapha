@@ -307,6 +307,7 @@ export const EditMemberModal: React.FC<{
   const [career, setCareer] = useState(targetMember.career || '');
   const [academicLevel, setAcademicLevel] = useState(targetMember.academicLevel || '');
   const [biography, setBiography] = useState(targetMember.biography || '');
+  const [email, setEmail] = useState(targetMember.email || '');
   const [birthOrder, setBirthOrder] = useState(targetMember.birthOrder || 1);
   const [relationType, setRelationType] = useState(targetMember.relationType || 'BIOLOGICAL');
   const [isDeceased, setIsDeceased] = useState(targetMember.isDeceased || false);
@@ -320,6 +321,7 @@ export const EditMemberModal: React.FC<{
     setCareer(targetMember.career || '');
     setAcademicLevel(targetMember.academicLevel || '');
     setBiography(targetMember.biography || '');
+    setEmail(targetMember.email || '');
     setBirthOrder(targetMember.birthOrder || 1);
     setRelationType(targetMember.relationType || 'BIOLOGICAL');
     setIsDeceased(targetMember.isDeceased || false);
@@ -337,6 +339,7 @@ export const EditMemberModal: React.FC<{
         career,
         academicLevel,
         biography,
+        email,
         birthOrder,
         relationType,
         isDeceased,
@@ -400,6 +403,11 @@ export const EditMemberModal: React.FC<{
         <div>
           <label className="block text-sm font-medium text-wood-dark mb-1">Tiểu sử</label>
           <textarea value={biography} onChange={e => setBiography(e.target.value)} rows={3} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="Ghi chú thêm về thành viên..."></textarea>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-wood-dark mb-1">Email liên hệ (tùy chọn)</label>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: nguoidung@gmail.com" />
+          <p className="text-xs text-gray-500 mt-1">Dùng để gửi email nhắc lịch giỗ/sinh nhật tự động.</p>
         </div>
         <button type="submit" disabled={isSubmitting} className="w-full bg-burgundy hover:bg-burgundy-dark text-white py-2 rounded font-medium transition-colors disabled:opacity-50">
           {isSubmitting ? 'Đang xử lý...' : 'Lưu Thay Đổi'}

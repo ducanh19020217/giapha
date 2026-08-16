@@ -74,7 +74,7 @@ function getSheet(sheetName) {
     sheet = ss.insertSheet(sheetName);
     // Initialize headers if new
     if (sheetName === 'Members') {
-      sheet.appendRow(['id', 'name', 'gender', 'birthDate', 'isDeceased', 'deathDate', 'generation', 'birthOrder', 'fatherId', 'motherId', 'relationType', 'avatarUrl', 'academicLevel', 'career', 'biography']);
+      sheet.appendRow(['id', 'name', 'gender', 'birthDate', 'isDeceased', 'deathDate', 'generation', 'birthOrder', 'fatherId', 'motherId', 'relationType', 'avatarUrl', 'academicLevel', 'career', 'biography', 'email']);
     } else if (sheetName === 'Spouses') {
       sheet.appendRow(['id', 'memberId', 'spouseId', 'isPrimary', 'order']);
     }
@@ -154,16 +154,17 @@ function addMember(data) {
     avatarUrl: data.avatarUrl || '',
     academicLevel: data.academicLevel || '',
     career: data.career || '',
-    biography: data.biography || ''
+    biography: data.biography || '',
+    email: data.email || ''
   };
-  
+
   sheet.appendRow([
-    newMember.id, newMember.name, newMember.gender, newMember.birthDate, newMember.isDeceased, 
-    newMember.deathDate, newMember.generation, newMember.birthOrder, newMember.fatherId, 
-    newMember.motherId, newMember.relationType, newMember.avatarUrl, newMember.academicLevel, 
-    newMember.career, newMember.biography
+    newMember.id, newMember.name, newMember.gender, newMember.birthDate, newMember.isDeceased,
+    newMember.deathDate, newMember.generation, newMember.birthOrder, newMember.fatherId,
+    newMember.motherId, newMember.relationType, newMember.avatarUrl, newMember.academicLevel,
+    newMember.career, newMember.biography, newMember.email
   ]);
-  
+
   newMember.spouses = [];
   return newMember;
 }
@@ -309,8 +310,9 @@ function markDeceased(data) {
 function updateMember(data) {
   const sheet = getSheet('Members');
   const values = sheet.getDataRange().getValues();
+  const emailCol = values[0].indexOf('email'); // -1 nếu Sheet cũ chưa chạy ensureEmailColumn()
   let updatedRow = -1;
-  
+
   for (let i = 1; i < values.length; i++) {
     if (values[i][0] === data.id) {
       // ['id', 'name', 'gender', 'birthDate', 'isDeceased', 'deathDate', 'generation', 'birthOrder', 'fatherId', 'motherId', 'relationType', 'avatarUrl', 'academicLevel', 'career', 'biography']
@@ -328,18 +330,34 @@ function updateMember(data) {
       if (data.academicLevel !== undefined) values[i][12] = data.academicLevel;
       if (data.career !== undefined) values[i][13] = data.career;
       if (data.biography !== undefined) values[i][14] = data.biography;
-      
+      if (data.email !== undefined && emailCol > -1) values[i][emailCol] = data.email;
+
       updatedRow = i;
       break;
     }
   }
-  
+
   if (updatedRow === -1) throw new Error("Member not found");
-  
+
   // Ghi toàn bộ dữ liệu trở lại trong 1 lệnh API (tối ưu hóa tốc độ O(1))
   sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
-  
+
   return data;
+}
+
+// Chạy hàm này 1 LẦN (chọn hàm trong dropdown Apps Script editor > Run) nếu Sheet
+// Members của bạn được tạo TRƯỚC KHI tính năng email được thêm vào, để bật tính
+// năng lưu email liên hệ qua giao diện web (mục "Sửa hồ sơ").
+function ensureEmailColumn() {
+  const sheet = getSheet('Members');
+  const lastCol = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headers.indexOf('email') === -1) {
+    sheet.getRange(1, lastCol + 1).setValue('email');
+    Logger.log('Đã thêm cột "email" vào Sheet Members.');
+  } else {
+    Logger.log('Cột "email" đã tồn tại, không cần thêm.');
+  }
 }
 
 function deleteMember(data) {
@@ -371,4 +389,131 @@ function deleteMember(data) {
   }
   
   return { success: true, id: targetId };
+}
+
+// ==========================================
+// NHẮC LỊCH GIỖ / SINH NHẬT QUA EMAIL
+// ==========================================
+// Cách kích hoạt: mở file này trong Apps Script editor, chọn hàm
+// "createDailyReminderTrigger" ở dropdown trên thanh công cụ rồi bấm Run
+// (chỉ cần chạy 1 LẦN). Từ đó hệ thống sẽ tự kiểm tra & gửi email mỗi ngày
+// lúc ~7h sáng, không cần ai mở web app. Người nhận là tất cả thành viên
+// có điền "email" trong hồ sơ (xem hàm ensureEmailColumn()).
+
+const REMINDER_DAYS_AHEAD = 3; // Gửi nhắc trước bao nhiêu ngày
+
+function parseDayMonth(dateString) {
+  if (!dateString) return null;
+  const str = String(dateString);
+
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return { day: parseInt(isoMatch[3]), month: parseInt(isoMatch[2]) };
+  }
+
+  const match = str.match(/\b(\d{1,2})[\/\-\.](\d{1,2})\b/);
+  if (match) {
+    const day = parseInt(match[1]);
+    const month = parseInt(match[2]);
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return { day: day, month: month };
+    }
+  }
+  return null;
+}
+
+// Số ngày còn lại đến lần xuất hiện tiếp theo của ngày/tháng đó (0 = hôm nay)
+function daysUntilNextOccurrence(day, month, today) {
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let target = new Date(t0.getFullYear(), month - 1, day);
+  if (target < t0) {
+    target = new Date(t0.getFullYear() + 1, month - 1, day);
+  }
+  return Math.round((target - t0) / (1000 * 60 * 60 * 24));
+}
+
+function buildReminderEmailBody(upcomingEvents) {
+  const rows = upcomingEvents.map(function (ev) {
+    const when = ev.daysUntil === 0 ? 'Hôm nay' : (ev.daysUntil === 1 ? 'Ngày mai' : 'Còn ' + ev.daysUntil + ' ngày');
+    return '<li><b>' + ev.label + '</b> — ' + ev.member.name + ' (' + ev.day + '/' + ev.month + ') — ' + when + '</li>';
+  }).join('');
+
+  return '<div style="font-family: Georgia, serif; color: #4a3728;">' +
+    '<h2 style="color: #7b241c;">🌳 Nhắc lịch Gia Phả</h2>' +
+    '<p>Các sự kiện sắp diễn ra trong ' + REMINDER_DAYS_AHEAD + ' ngày tới:</p>' +
+    '<ul>' + rows + '</ul>' +
+    '</div>';
+}
+
+function checkAndSendReminders() {
+  const members = getMembers();
+
+  const recipients = members
+    .map(function (m) { return m.email; })
+    .filter(function (email) { return email && String(email).indexOf('@') > -1; });
+
+  if (recipients.length === 0) {
+    Logger.log('Không có email nào được cấu hình, bỏ qua gửi nhắc nhở.');
+    return;
+  }
+
+  const today = new Date();
+  const upcoming = [];
+
+  members.forEach(function (member) {
+    if (!member.isDeceased && member.birthDate) {
+      const dm = parseDayMonth(member.birthDate);
+      if (dm) {
+        const daysUntil = daysUntilNextOccurrence(dm.day, dm.month, today);
+        if (daysUntil >= 0 && daysUntil <= REMINDER_DAYS_AHEAD) {
+          upcoming.push({ member: member, label: 'Sinh nhật', day: dm.day, month: dm.month, daysUntil: daysUntil });
+        }
+      }
+    }
+    if (member.isDeceased && member.deathDate) {
+      const dm = parseDayMonth(member.deathDate);
+      if (dm) {
+        const daysUntil = daysUntilNextOccurrence(dm.day, dm.month, today);
+        if (daysUntil >= 0 && daysUntil <= REMINDER_DAYS_AHEAD) {
+          upcoming.push({ member: member, label: 'Ngày giỗ', day: dm.day, month: dm.month, daysUntil: daysUntil });
+        }
+      }
+    }
+  });
+
+  if (upcoming.length === 0) {
+    Logger.log('Không có sự kiện nào sắp tới trong ' + REMINDER_DAYS_AHEAD + ' ngày.');
+    return;
+  }
+
+  upcoming.sort(function (a, b) { return a.daysUntil - b.daysUntil; });
+
+  const subject = '[Gia Phả] Nhắc lịch: ' + upcoming.length + ' sự kiện sắp tới';
+  const body = buildReminderEmailBody(upcoming);
+
+  recipients.forEach(function (email) {
+    try {
+      MailApp.sendEmail({ to: email, subject: subject, htmlBody: body });
+    } catch (err) {
+      Logger.log('Gửi email thất bại tới ' + email + ': ' + err);
+    }
+  });
+}
+
+// Chạy hàm này 1 LẦN từ Apps Script editor để đăng ký trigger tự động chạy
+// checkAndSendReminders() mỗi ngày (khoảng 7h-8h sáng theo múi giờ của Script).
+function createDailyReminderTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'checkAndSendReminders') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+
+  ScriptApp.newTrigger('checkAndSendReminders')
+    .timeBased()
+    .everyDays(1)
+    .atHour(7)
+    .create();
+
+  Logger.log('Đã tạo trigger gửi nhắc nhở hàng ngày lúc ~7h sáng.');
 }

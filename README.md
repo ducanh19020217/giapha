@@ -63,6 +63,20 @@ Trình duyệt sẽ hiển thị địa chỉ local (thường là `http://local
 
 ---
 
+## 🔔 Nhắc lịch Giỗ / Sinh nhật qua Email (Tùy chọn)
+
+Vì Backend chạy trên Google Apps Script, nó vẫn hoạt động được trên server của Google kể cả khi không ai mở web app, nên hoàn toàn có thể tự động gửi email nhắc lịch mà không cần thêm Server nào khác.
+
+1. **Điền email liên hệ:** Mở hồ sơ một thành viên trên web (cần đăng nhập Admin) > **Sửa hồ sơ** > điền vào ô **Email liên hệ**. Ai có điền email sẽ nhận được thư nhắc lịch.
+   - Nếu Sheet của bạn được tạo **trước khi** có tính năng này, hãy mở Apps Script editor, chọn hàm `ensureEmailColumn` ở dropdown trên thanh công cụ rồi bấm **Run** (chỉ 1 lần) để thêm cột `email` vào Sheet `Members`.
+2. **Bật gửi tự động:** Trong Apps Script editor, chọn hàm `createDailyReminderTrigger` ở dropdown rồi bấm **Run** (chỉ 1 lần). Lần đầu chạy, Google sẽ yêu cầu cấp quyền gửi email thay bạn — chọn tài khoản > `Advanced` > `Go to...` > `Allow`.
+3. Từ đó, mỗi ngày lúc khoảng 7h sáng, hệ thống sẽ tự kiểm tra và gửi email tới tất cả người có điền email nếu có sinh nhật/ngày giỗ nào trong vòng 3 ngày tới (chỉnh hằng số `REMINDER_DAYS_AHEAD` trong `backend_script.gs` nếu muốn đổi số ngày).
+4. Muốn gửi thử ngay để kiểm tra: chọn hàm `checkAndSendReminders` rồi bấm **Run**.
+
+*(Lưu ý: Gmail cá nhân giới hạn ~100 email/ngày; tài khoản Google Workspace giới hạn ~1500 email/ngày — thừa sức cho quy mô một dòng họ.)*
+
+---
+
 ## 🛠️ Đưa lên Internet (Production Deployment)
 Khi bạn đã nhập xong dữ liệu và muốn gửi link web cho họ hàng cùng xem:
 1. Mở terminal, chạy lệnh đóng gói dự án:

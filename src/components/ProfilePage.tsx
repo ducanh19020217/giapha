@@ -124,7 +124,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <p className="mb-1 text-sm"><span className="font-semibold text-wood">Học vị:</span> {member.academicLevel}</p>
             )}
             {member.career && (
-              <p className="mb-3 text-sm"><span className="font-semibold text-wood">Sự nghiệp:</span> {member.career}</p>
+              <p className="mb-1 text-sm"><span className="font-semibold text-wood">Sự nghiệp:</span> {member.career}</p>
+            )}
+            {member.email && (
+              <p className="mb-3 text-sm"><span className="font-semibold text-wood">Email:</span> {member.email}</p>
             )}
             <div className="prose prose-sm prose-wood max-w-none text-gray-700 leading-relaxed font-serif">
               <p>{member.biography || 'Đang cập nhật tiểu sử...'}</p>
