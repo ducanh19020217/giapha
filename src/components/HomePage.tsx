@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { DetailedMember } from '../types/member';
 import { useAuth } from '../context/AuthContext';
+import { useIdentity } from '../context/IdentityContext';
 import { useNavigate } from 'react-router-dom';
+import { IdentityModal } from './IdentityModal';
 
 interface HomePageProps {
   members: DetailedMember[];
@@ -10,8 +12,11 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => {
   const { user, logout } = useAuth();
+  const { myMemberId } = useIdentity();
+  const myMember = members.find(m => m.id === myMemberId);
+  const [isIdentityModalOpen, setIdentityModalOpen] = useState(false);
   const navigate = useNavigate();
-  
+
   // Calculate max generation
   const maxGeneration = members.length > 0 
     ? Math.max(...members.map(m => m.generation)) 
@@ -26,7 +31,14 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => 
            }} 
       />
 
-      <header className="w-full p-4 flex justify-end relative z-50">
+      <header className="w-full p-4 flex justify-end items-center gap-2 relative z-50">
+        <button
+          type="button"
+          onClick={() => setIdentityModalOpen(true)}
+          className="text-sm border border-wood-dark/30 text-wood-dark hover:bg-wood-dark hover:text-white px-4 py-2 rounded transition-colors shadow-sm font-medium bg-white/50 backdrop-blur-sm"
+        >
+          {myMember ? <>Bạn: <span className="font-bold">{myMember.name}</span></> : 'Bạn là ai?'}
+        </button>
         {user ? (
           <div className="flex items-center gap-4 bg-white/50 px-4 py-2 rounded-lg shadow-sm backdrop-blur-sm border border-wood/20">
             <span className="text-sm font-medium text-wood-dark">
@@ -133,6 +145,8 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => 
       <footer className="w-full py-6 text-center text-sm text-wood/60 relative z-10">
         &copy; {new Date().getFullYear()} Hệ thống Quản lý Gia phả Số
       </footer>
+
+      <IdentityModal isOpen={isIdentityModalOpen} onClose={() => setIdentityModalOpen(false)} members={members} />
     </div>
   );
 };

@@ -7,7 +7,9 @@ import { ProfilePage } from './components/ProfilePage'
 import { KinshipCalculator } from './components/KinshipCalculator'
 import { EventsCalendar } from './components/EventsCalendar'
 import { LoginModal } from './components/LoginModal'
+import { IdentityModal } from './components/IdentityModal'
 import { useAuth } from './context/AuthContext'
+import { useIdentity } from './context/IdentityContext'
 import { DetailedMember } from './types/member'
 import { FamilyEvent } from './types/event'
 import * as api from './services/api'
@@ -28,6 +30,7 @@ function MemberPageRoute(props: {
   onDelete: (id: string) => void;
 }) {
   const { id } = useParams();
+  const { myMemberId } = useIdentity();
   const member = props.members.find(m => m.id === id);
 
   if (!member) {
@@ -45,6 +48,7 @@ function MemberPageRoute(props: {
       allMembers={props.members}
       events={props.events}
       isAdmin={props.isAdmin}
+      myMemberId={myMemberId}
       onAddSpouse={() => props.onAddSpouse(member.id)}
       onAddChild={() => props.onAddChild(member.id)}
       onAddParent={() => props.onAddParent(member.id)}
@@ -65,6 +69,7 @@ function App() {
   
   const { user, logout } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+  const { myMemberId } = useIdentity();
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -72,6 +77,7 @@ function App() {
 
   // Các state cho Modals
   const [isLoginModalOpen, setLoginModalOpen] = useState(false);
+  const [isIdentityModalOpen, setIdentityModalOpen] = useState(false);
   const [isSpouseModalOpen, setSpouseModalOpen] = useState(false);
   const [isChildModalOpen, setChildModalOpen] = useState(false);
   const [isDeceasedModalOpen, setDeceasedModalOpen] = useState(false);
@@ -107,6 +113,7 @@ function App() {
   }, []);
 
   const selectedMember = members.find(m => m.id === selectedMemberId);
+  const myMember = members.find(m => m.id === myMemberId);
 
   // --- HANDLERS ---
   const handleAddRoot = async (name: string, gender: 'male'|'female') => {
@@ -282,16 +289,23 @@ function App() {
                     Trang Chủ
                   </Link>
                 </div>
-                <div className="absolute top-4 right-4 z-10">
+                <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIdentityModalOpen(true)}
+                    className="text-sm border border-wood-dark/30 text-wood-dark hover:bg-wood-dark hover:text-white px-4 py-2 rounded transition-colors shadow-sm font-medium bg-white/50 backdrop-blur-sm"
+                  >
+                    {myMember ? <>Bạn: <span className="font-bold">{myMember.name}</span></> : 'Bạn là ai?'}
+                  </button>
                   {user ? (
                     <div className="flex items-center gap-4 bg-white/50 px-4 py-2 rounded-lg shadow-sm backdrop-blur-sm border border-wood/20">
                       <span className="text-sm font-medium text-wood-dark">Xin chào, <span className="text-burgundy font-bold">{user.username}</span></span>
                       <button onClick={() => { logout(); window.location.reload(); }} className="text-sm bg-wood hover:bg-wood-dark text-white px-4 py-2 rounded transition-colors shadow-sm font-medium">Đăng xuất</button>
                     </div>
                   ) : (
-                    <button 
+                    <button
                       type="button"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLoginModalOpen(true); }} 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLoginModalOpen(true); }}
                       className="text-sm border-2 border-burgundy text-burgundy hover:bg-burgundy hover:text-white px-4 py-2 rounded transition-all shadow-sm font-medium bg-white/50 backdrop-blur-sm"
                     >
                       Đăng Nhập Quản Trị
@@ -310,13 +324,20 @@ function App() {
             )}
 
             {isTreeView && (
-              <div className="fixed top-4 left-4 z-50">
+              <div className="fixed top-4 left-4 z-50 flex items-center gap-2">
                 <Link to="/" className="text-sm bg-white/80 backdrop-blur-sm border border-wood-dark/20 text-wood-dark hover:bg-wood-dark hover:text-white px-4 py-2 rounded-full transition-colors shadow-md font-medium flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
                   Trang Chủ
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => setIdentityModalOpen(true)}
+                  className="text-sm bg-white/80 backdrop-blur-sm border border-wood-dark/20 text-wood-dark hover:bg-wood-dark hover:text-white px-4 py-2 rounded-full transition-colors shadow-md font-medium"
+                >
+                  {myMember ? <>Bạn: <span className="font-bold">{myMember.name}</span></> : 'Bạn là ai?'}
+                </button>
               </div>
             )}
 
@@ -334,6 +355,7 @@ function App() {
                       onMarkDeceased={openMarkDeceased}
                       onAddRoot={() => setRootModalOpen(true)}
                       isAdmin={isAdmin}
+                      myMemberId={myMemberId}
                     />
                   </div>
                 } />
@@ -386,6 +408,7 @@ function App() {
 
       {/* --- MODALS --- */}
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setLoginModalOpen(false)} />
+      <IdentityModal isOpen={isIdentityModalOpen} onClose={() => setIdentityModalOpen(false)} members={members} />
 
       <AddRootModal
         isOpen={isRootModalOpen}

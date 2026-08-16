@@ -111,7 +111,30 @@ export const calculateCoreKinship = (
   const ancestorsA = getAncestors(personA);
   const ancestorsB = getAncestors(personB);
 
-  // Tìm tổ tiên chung gần nhất (LCA)
+  // Kiểm tra quan hệ trực hệ TRƯỚC khi tìm tổ tiên chung. Bắt buộc phải làm trước,
+  // vì nếu B là tổ tiên trực tiếp của A (VD: cha) và B lại có tổ tiên riêng (VD: ông),
+  // thì tổ tiên đó của B cũng nằm trong đường tổ tiên của A (qua chính B) — vòng lặp
+  // tìm tổ tiên chung bên dưới sẽ "tìm thấy" tổ tiên chung giả này và tính nhầm B
+  // thành quan hệ bàng hệ (VD: Chú) thay vì trực hệ (Cha).
+  const idxB = ancestorsA.findIndex(a => a.id === personB.id);
+  if (idxB !== -1) {
+    const diff = idxB + 1;
+    if (diff === 1) return personB.gender === 'male' ? 'Cha' : 'Mẹ';
+    if (diff === 2) return personB.gender === 'male' ? 'Ông' : 'Bà';
+    if (diff === 3) return personB.gender === 'male' ? 'Cụ Ông' : 'Cụ Bà';
+    return 'Tổ Tiên';
+  }
+
+  const idxA = ancestorsB.findIndex(b => b.id === personA.id);
+  if (idxA !== -1) {
+    const diff = idxA + 1;
+    if (diff === 1) return personB.gender === 'male' ? 'Con trai' : 'Con gái';
+    if (diff === 2) return personB.gender === 'male' ? 'Cháu trai' : 'Cháu gái';
+    if (diff === 3) return personB.gender === 'male' ? 'Chắt trai' : 'Chắt gái';
+    return 'Hậu duệ';
+  }
+
+  // Tìm tổ tiên chung gần nhất (LCA) cho quan hệ bàng hệ (anh/chị/em, chú/bác/cô/dì...)
   let lcaId: string | null = null;
   let pathA: string[] = [];
   let pathB: string[] = [];
@@ -128,27 +151,7 @@ export const calculateCoreKinship = (
     }
   }
 
-  // Trường hợp không có tổ tiên chung, hoặc là quan hệ trực hệ
   if (!lcaId) {
-    // Kiểm tra trực hệ
-    const idxB = ancestorsA.findIndex(a => a.id === personB.id);
-    if (idxB !== -1) {
-      const diff = idxB + 1;
-      if (diff === 1) return personB.gender === 'male' ? 'Cha' : 'Mẹ';
-      if (diff === 2) return personB.gender === 'male' ? 'Ông' : 'Bà';
-      if (diff === 3) return personB.gender === 'male' ? 'Cụ Ông' : 'Cụ Bà';
-      return 'Tổ Tiên';
-    }
-
-    const idxA = ancestorsB.findIndex(b => b.id === personA.id);
-    if (idxA !== -1) {
-      const diff = idxA + 1;
-      if (diff === 1) return personB.gender === 'male' ? 'Con trai' : 'Con gái';
-      if (diff === 2) return personB.gender === 'male' ? 'Cháu trai' : 'Cháu gái';
-      if (diff === 3) return personB.gender === 'male' ? 'Chắt trai' : 'Chắt gái';
-      return 'Hậu duệ';
-    }
-
     // Nếu có spouse (vợ/chồng)
     if (personA.spouses?.find(s => s.id === personB.id)) {
       return personB.gender === 'male' ? 'Chồng' : 'Vợ';

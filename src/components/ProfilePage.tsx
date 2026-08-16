@@ -5,12 +5,13 @@ import { FamilyEvent } from '../types/event';
 import { DateWithCalendarInput } from './ActionModals';
 import { resizeImageToBase64 } from '../utils/imageUpload';
 import { uploadAvatar } from '../services/api';
-import { getAncestorTree } from '../utils/kinshipCalculator';
+import { getAncestorTree, calculateKinship } from '../utils/kinshipCalculator';
 
 interface ProfilePageProps {
   member: DetailedMember;
   allMembers: DetailedMember[];
   events?: FamilyEvent[];
+  myMemberId?: string | null;
   onAddSpouse?: () => void;
   onAddChild?: () => void;
   onAddParent?: () => void;
@@ -26,6 +27,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   member,
   allMembers,
   events,
+  myMemberId,
   onAddSpouse,
   onAddChild,
   onAddParent,
@@ -44,6 +46,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     (m) => m.fatherId === member.id || m.motherId === member.id
   );
   const ancestors = useMemo(() => getAncestorTree(member, allMembers), [member, allMembers]);
+
+  const myMember = myMemberId ? allMembers.find(m => m.id === myMemberId) : undefined;
+  const relationToMe = useMemo(() => {
+    if (!myMember || myMember.id === member.id) return null;
+    return calculateKinship(myMember, member, allMembers);
+  }, [myMember, member, allMembers]);
 
   // --- Trạng thái form Sửa hồ sơ ---
   const [name, setName] = useState(member.name);
@@ -144,6 +152,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <p className="text-xs text-orange-100/70 italic">
               {member.birthDate || '?'} - {member.isDeceased ? (member.deathDate || 'Không rõ') : 'Nay'}
             </p>
+            {relationToMe && (
+              <p className="mt-2 inline-block bg-white/15 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-serif">
+                Bạn gọi người này là: <span className="font-bold text-bronze-light">{relationToMe}</span>
+              </p>
+            )}
+            {myMember?.id === member.id && (
+              <p className="mt-2 inline-block bg-burgundy/70 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-serif font-bold">
+                Đây là bạn
+              </p>
+            )}
           </div>
         </div>
 

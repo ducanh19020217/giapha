@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Tree from 'react-d3-tree';
 import { DetailedMember } from '../types/member';
+import { calculateKinship } from '../utils/kinshipCalculator';
 
 const removeVietnameseTones = (str: string) => {
   if (!str) return '';
@@ -22,6 +23,7 @@ interface FamilyTreeProps {
   onAddRoot?: () => void;
   isAdmin?: boolean;
   isLoading?: boolean;
+  myMemberId?: string | null;
 }
 
 interface TreeNode {
@@ -40,11 +42,23 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
   onMarkDeceased,
   onAddRoot,
   isAdmin,
-  isLoading
+  isLoading,
+  myMemberId
 }) => {
   const [filterLiving, setFilterLiving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
+
+  // Xưng hô của "myMemberId" (Bạn) với từng thành viên khác, tính 1 lần rồi tra cứu O(1) khi vẽ node
+  const relationLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    const myMember = myMemberId ? members.find(m => m.id === myMemberId) : undefined;
+    if (!myMember) return map;
+    members.forEach(m => {
+      map.set(m.id, m.id === myMember.id ? 'Bạn' : calculateKinship(myMember, m, members));
+    });
+    return map;
+  }, [members, myMemberId]);
 
   const treeData = useMemo(() => {
     const memberMap = new Map<string, TreeNode>();
@@ -157,6 +171,7 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
     const isSelected = nodeDatum.memberData.id === selectedMemberId;
     const isDeceased = nodeDatum.attributes?.isDeceased;
     const spouses = nodeDatum.attributes?.spouses || [];
+    const relationLabel = relationLabels.get(nodeDatum.memberData.id);
 
     const isMainMemberMatched = searchQuery.trim() !== '' && removeVietnameseTones(nodeDatum.name).includes(removeVietnameseTones(searchQuery.trim()));
 
@@ -257,7 +272,13 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
               <div className={`text-base font-serif font-bold text-center leading-tight mb-1.5 ${nodeDatum.attributes?.gender === 'male' ? 'text-wood-dark' : 'text-burgundy'}`}>
                 {nodeDatum.name}
               </div>
-              
+
+              {relationLabel && (
+                <div className={`text-[10px] font-serif px-2 py-0.5 rounded-full mb-1 ${relationLabel === 'Bạn' ? 'bg-burgundy text-white font-semibold' : 'bg-bronze/10 text-bronze-dark border border-bronze/20'}`}>
+                  {relationLabel === 'Bạn' ? 'Bạn' : relationLabel}
+                </div>
+              )}
+
               {nodeDatum.attributes?.relationType === 'ADOPTED' && (
                 <div className="text-[10px] text-wood font-serif bg-wood/10 px-2.5 py-0.5 rounded-full mb-1 border border-wood/20">Con nuôi</div>
               )}
@@ -311,6 +332,12 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
                     <div className={`text-base font-serif font-bold text-center leading-tight mb-1.5 ${spouse.gender === 'male' ? 'text-wood-dark' : 'text-burgundy'}`}>
                       {spouse.name}
                     </div>
+
+                    {relationLabels.get(spouse.id) && (
+                      <div className={`text-[10px] font-serif px-2 py-0.5 rounded-full mb-1 ${relationLabels.get(spouse.id) === 'Bạn' ? 'bg-burgundy text-white font-semibold' : 'bg-bronze/10 text-bronze-dark border border-bronze/20'}`}>
+                        {relationLabels.get(spouse.id)}
+                      </div>
+                    )}
 
                     {spouse.isDeceased && (
                       <div className="text-[11px] italic text-gray-400 font-serif mt-1">
