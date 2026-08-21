@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Routes, Route, Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { HomePage } from './components/HomePage'
 import { AddSpouseModal, AddChildModal, MarkDeceasedModal, AddRootModal, AddParentModal, AddEventModal } from './components/ActionModals'
 import { FamilyTree } from './components/FamilyTree'
@@ -10,6 +10,7 @@ import { LoginModal } from './components/LoginModal'
 import { IdentityModal } from './components/IdentityModal'
 import { useAuth } from './context/AuthContext'
 import { useIdentity } from './context/IdentityContext'
+import { KINSHIP_LOOKUP_ENABLED } from './config/featureFlags'
 import { DetailedMember } from './types/member'
 import { FamilyEvent } from './types/event'
 import * as api from './services/api'
@@ -420,10 +421,12 @@ function App() {
                 } />
 
                 <Route path="kinship" element={
-                  <div className="mt-8 bg-white p-8 rounded-xl shadow-sm border border-wood/10">
-                    <h2 className="text-2xl font-serif text-burgundy mb-6 text-center">Tra Cứu Quan Hệ Huyết Thống</h2>
-                    <KinshipCalculator members={members} />
-                  </div>
+                  KINSHIP_LOOKUP_ENABLED ? (
+                    <div className="mt-8 bg-white p-8 rounded-xl shadow-sm border border-wood/10">
+                      <h2 className="text-2xl font-serif text-burgundy mb-6 text-center">Tra Cứu Quan Hệ Huyết Thống</h2>
+                      <KinshipCalculator members={members} />
+                    </div>
+                  ) : <Navigate to="/" replace />
                 } />
 
                 <Route path="events" element={
