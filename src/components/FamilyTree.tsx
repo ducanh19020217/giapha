@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Tree from 'react-d3-tree';
 import { DetailedMember } from '../types/member';
@@ -48,6 +48,35 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
   const [filterLiving, setFilterLiving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
+
+  // Đo kích thước thực tế của khung chứa cây để căn giữa và tự thu nhỏ trên màn hình hẹp (điện thoại)
+  const treeWrapperRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const el = treeWrapperRef.current;
+    if (!el) return;
+    const updateSize = () => setContainerSize({ width: el.clientWidth, height: el.clientHeight });
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Bề rộng ô lớn nhất trong toàn cây (một người + các vợ/chồng), để nodeSize không bị hẹp hơn nội dung thực tế gây đè lên nhau
+  const maxNodeWidth = useMemo(() => {
+    let max = 220;
+    members.forEach(m => {
+      const width = 220 + (m.spouses?.length || 0) * 220;
+      if (width > max) max = width;
+    });
+    return max;
+  }, [members]);
+
+  // Trên màn hình hẹp, thu nhỏ zoom ban đầu để thấy được nhiều nhánh cây hơn thay vì cây tràn ra ngoài khung nhìn
+  const initialZoom = containerSize.width > 0
+    ? Math.min(1, Math.max(0.4, containerSize.width / 800))
+    : 1;
 
   // Xưng hô của "myMemberId" (Bạn) với từng thành viên khác, tính 1 lần rồi tra cứu O(1) khi vẽ node
   const relationLabels = useMemo(() => {
@@ -385,8 +414,8 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
           </label>
         </div>
       </div>
-      <div id="treeWrapper" className="w-full h-full overflow-hidden" style={{ touchAction: 'none' }}>
-        {isLoading ? (
+      <div ref={treeWrapperRef} id="treeWrapper" className="w-full h-full overflow-hidden" style={{ touchAction: 'none' }}>
+        {isLoading || (treeData.length > 0 && containerSize.width === 0) ? (
           <div className="w-full h-full flex flex-col items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-burgundy mb-4"></div>
             <p className="text-wood-dark font-serif italic animate-pulse">Đang tải mộc bản...</p>
@@ -396,10 +425,13 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
             data={treeData}
             orientation="vertical"
             pathFunc="step"
-            translate={{ x: 300, y: 80 }}
-            nodeSize={{ x: 300, y: 320 }}
+            dimensions={containerSize}
+            translate={{ x: containerSize.width / 2, y: 80 }}
+            zoom={initialZoom}
+            scaleExtent={{ min: 0.1, max: 2 }}
+            nodeSize={{ x: maxNodeWidth + 80, y: 320 }}
             renderCustomNodeElement={renderCustomNodeElement}
-            separation={{ siblings: 1.5, nonSiblings: 2 }}
+            separation={{ siblings: 1.2, nonSiblings: 1.6 }}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-gray-500">
