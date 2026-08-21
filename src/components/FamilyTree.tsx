@@ -13,6 +13,19 @@ const removeVietnameseTones = (str: string) => {
     .toLowerCase();
 };
 
+// Safari/WebKit (kể cả mọi trình duyệt trên iOS) tính sai vị trí nội dung HTML lồng trong
+// SVG <foreignObject> khi nội dung đó dùng position/transform/transition — nội dung bị dồn
+// về góc (0,0) của cả SVG thay vì đúng vị trí node, gây "vỡ giao diện". Né các class đó
+// trong node card trên các trình duyệt này.
+// https://github.com/bkrem/react-d3-tree/issues/284
+const IS_WEBKIT_FOREIGNOBJECT_BUGGY = (() => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafariDesktop = /^((?!chrome|android).)*safari/i.test(ua);
+  return isIOS || isSafariDesktop;
+})();
+
 interface FamilyTreeProps {
   members: DetailedMember[];
   onSelectMember: (memberId: string) => void;
@@ -271,12 +284,14 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
             <div 
               style={{ opacity: (filterLiving && isDeceased) ? 0.3 : 1 }}
               onClick={() => onSelectMember(nodeDatum.memberData.id)}
-              className={`w-[190px] flex-shrink-0 p-5 bg-white/85 backdrop-blur-md border cursor-pointer transition-all duration-300 flex flex-col items-center justify-center relative rounded-2xl group ${
+              className={`w-[190px] flex-shrink-0 p-5 bg-white/85 backdrop-blur-md border cursor-pointer flex flex-col items-center justify-center rounded-2xl group ${
+                IS_WEBKIT_FOREIGNOBJECT_BUGGY ? '' : 'transition-all duration-300 relative'
+              } ${
                 nodeDatum.attributes?.relationType === 'ADOPTED' || nodeDatum.attributes?.relationType === 'STEPCHILD' ? 'border-dashed border-[2px] border-wood-light/60' : 'border-white/60'
               } ${
-                isSelected 
-                  ? 'shadow-[0_8px_30px_rgb(0,0,0,0.12)] border-bronze z-10 scale-[1.03] ring-1 ring-bronze' 
-                  : 'shadow-lg hover:shadow-xl hover:-translate-y-1 hover:border-bronze/40'
+                isSelected
+                  ? `shadow-[0_8px_30px_rgb(0,0,0,0.12)] border-bronze z-10 ring-1 ring-bronze ${IS_WEBKIT_FOREIGNOBJECT_BUGGY ? '' : 'scale-[1.03]'}`
+                  : `shadow-lg hover:shadow-xl hover:border-bronze/40 ${IS_WEBKIT_FOREIGNOBJECT_BUGGY ? '' : 'hover:-translate-y-1'}`
               } ${isMainMemberMatched ? 'ring-4 ring-yellow-400 bg-yellow-50/90 shadow-[0_0_20px_rgba(250,204,21,0.6)] z-20' : ''}`}
               title={nodeDatum.name}
             >
@@ -337,10 +352,12 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
                   <div 
                     style={{ opacity: (filterLiving && spouse.isDeceased) ? 0.3 : 1 }}
                     onClick={() => onSelectMember(spouse.id)}
-                    className={`w-[190px] flex-shrink-0 p-5 bg-white/60 backdrop-blur-md border border-wood-light/20 border-dashed cursor-pointer transition-all duration-300 flex flex-col items-center justify-center relative rounded-2xl group ${
-                      isSpouseSelected 
-                        ? 'shadow-[0_8px_30px_rgb(0,0,0,0.12)] border-bronze z-10 scale-[1.03] ring-1 ring-bronze border-solid' 
-                        : 'shadow-lg hover:shadow-xl hover:-translate-y-1 hover:border-bronze/40'
+                    className={`w-[190px] flex-shrink-0 p-5 bg-white/60 backdrop-blur-md border border-wood-light/20 border-dashed cursor-pointer flex flex-col items-center justify-center rounded-2xl group ${
+                      IS_WEBKIT_FOREIGNOBJECT_BUGGY ? '' : 'transition-all duration-300 relative'
+                    } ${
+                      isSpouseSelected
+                        ? `shadow-[0_8px_30px_rgb(0,0,0,0.12)] border-bronze z-10 ring-1 ring-bronze border-solid ${IS_WEBKIT_FOREIGNOBJECT_BUGGY ? '' : 'scale-[1.03]'}`
+                        : `shadow-lg hover:shadow-xl hover:border-bronze/40 ${IS_WEBKIT_FOREIGNOBJECT_BUGGY ? '' : 'hover:-translate-y-1'}`
                     } ${isSpouseMatched ? 'ring-4 ring-yellow-400 bg-yellow-50/90 shadow-[0_0_20px_rgba(250,204,21,0.6)] z-20 border-solid' : ''}`}
                     title={spouse.name}
                   >

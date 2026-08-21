@@ -278,7 +278,7 @@ function App() {
         } />
         
         <Route path="/*" element={
-          <div className={`min-h-screen bg-[#F4F0EB] font-sans text-wood-dark ${isTreeView ? 'p-0 h-screen overflow-hidden' : 'p-4 md:p-8'}`}>
+          <div className={`min-h-screen bg-[#F4F0EB] font-sans text-wood-dark ${isTreeView ? 'p-0 h-dvh overflow-hidden' : 'p-4 md:p-8'}`}>
             {!isTreeView && (
               <header className="w-full max-w-[95%] mx-auto mb-10 text-center relative py-6 z-50">
                 <div className="absolute top-4 left-4 z-10 hidden md:block">
