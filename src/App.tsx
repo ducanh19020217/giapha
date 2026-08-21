@@ -280,8 +280,44 @@ function App() {
         <Route path="/*" element={
           <div className={`min-h-screen bg-[#F4F0EB] font-sans text-wood-dark ${isTreeView ? 'p-0 h-dvh overflow-hidden' : 'p-4 md:p-8'}`}>
             {!isTreeView && (
-              <header className="w-full max-w-[95%] mx-auto mb-10 text-center relative py-6 z-50">
-                <div className="absolute top-4 left-4 z-10 hidden md:block">
+              <header className="w-full max-w-[95%] mx-auto mb-10 relative z-50">
+                {/* Thanh công cụ trên mobile: nằm trên tiêu đề theo dòng chảy bình thường, không đè lên chữ */}
+                <div className="flex md:hidden items-center justify-between gap-2 mb-4">
+                  <Link
+                    to="/"
+                    aria-label="Trang chủ"
+                    className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border border-wood-dark text-wood-dark hover:bg-wood-dark hover:text-white transition-colors shadow-sm bg-white/50 backdrop-blur-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                  </Link>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setIdentityModalOpen(true)}
+                      className="text-xs border border-wood-dark/30 text-wood-dark hover:bg-wood-dark hover:text-white px-2.5 py-1.5 rounded-full transition-colors shadow-sm font-medium bg-white/50 backdrop-blur-sm truncate max-w-[120px]"
+                    >
+                      {myMember ? myMember.name : 'Bạn là ai?'}
+                    </button>
+                    {user ? (
+                      <button onClick={() => { logout(); window.location.reload(); }} className="flex-shrink-0 text-xs bg-wood hover:bg-wood-dark text-white px-2.5 py-1.5 rounded-full transition-colors shadow-sm font-medium">
+                        Đăng xuất
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLoginModalOpen(true); }}
+                        className="flex-shrink-0 text-xs border-2 border-burgundy text-burgundy hover:bg-burgundy hover:text-white px-2.5 py-1.5 rounded-full transition-all shadow-sm font-medium bg-white/50 backdrop-blur-sm"
+                      >
+                        Đăng nhập
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Desktop: điều khiển đặt ở góc tuyệt đối, không chiếm chỗ của tiêu đề */}
+                <div className="hidden md:block absolute top-4 left-4 z-10">
                   <Link to="/" className="text-sm border border-wood-dark text-wood-dark hover:bg-wood-dark hover:text-white px-4 py-2 rounded transition-colors shadow-sm font-medium flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -289,7 +325,7 @@ function App() {
                     Trang Chủ
                   </Link>
                 </div>
-                <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                <div className="hidden md:flex absolute top-4 right-4 z-10 items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setIdentityModalOpen(true)}
@@ -312,31 +348,38 @@ function App() {
                     </button>
                   )}
                 </div>
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-burgundy/20"></div>
-                <h1 className="text-4xl md:text-5xl font-serif font-bold text-burgundy mb-3 tracking-wide uppercase">
-                  {import.meta.env.VITE_FAMILY_TITLE || 'Gia Phả Nguyễn Tộc'}
-                </h1>
-                <p className="text-base text-wood italic font-serif">
-                  {import.meta.env.VITE_FAMILY_SUBTITLE || 'Mộc bản - Lưu truyền muôn đời'}
-                </p>
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-burgundy/20"></div>
+
+                <div className="text-center relative py-2 md:py-6">
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-burgundy/20"></div>
+                  <h1 className="text-4xl md:text-5xl font-serif font-bold text-burgundy mb-3 tracking-wide uppercase">
+                    {import.meta.env.VITE_FAMILY_TITLE || 'Gia Phả Nguyễn Tộc'}
+                  </h1>
+                  <p className="text-base text-wood italic font-serif">
+                    {import.meta.env.VITE_FAMILY_SUBTITLE || 'Mộc bản - Lưu truyền muôn đời'}
+                  </p>
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-burgundy/20"></div>
+                </div>
               </header>
             )}
 
             {isTreeView && (
-              <div className="fixed top-4 left-4 z-50 flex items-center gap-2">
-                <Link to="/" className="text-sm bg-white/80 backdrop-blur-sm border border-wood-dark/20 text-wood-dark hover:bg-wood-dark hover:text-white px-4 py-2 rounded-full transition-colors shadow-md font-medium flex items-center gap-2">
+              <div className="fixed top-4 left-4 z-50 flex items-center gap-1.5 md:gap-2 max-w-[calc(100vw-2rem)]">
+                <Link
+                  to="/"
+                  aria-label="Trang chủ"
+                  className="flex-shrink-0 flex items-center justify-center w-9 h-9 md:w-auto md:h-auto md:px-4 md:py-2 rounded-full bg-white/80 backdrop-blur-sm border border-wood-dark/20 text-wood-dark hover:bg-wood-dark hover:text-white transition-colors shadow-md font-medium md:flex md:items-center md:gap-2"
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
-                  Trang Chủ
+                  <span className="hidden md:inline">Trang Chủ</span>
                 </Link>
                 <button
                   type="button"
                   onClick={() => setIdentityModalOpen(true)}
-                  className="text-sm bg-white/80 backdrop-blur-sm border border-wood-dark/20 text-wood-dark hover:bg-wood-dark hover:text-white px-4 py-2 rounded-full transition-colors shadow-md font-medium"
+                  className="min-w-0 truncate text-xs md:text-sm bg-white/80 backdrop-blur-sm border border-wood-dark/20 text-wood-dark hover:bg-wood-dark hover:text-white px-3 py-1.5 md:px-4 md:py-2 rounded-full transition-colors shadow-md font-medium"
                 >
-                  {myMember ? <>Bạn: <span className="font-bold">{myMember.name}</span></> : 'Bạn là ai?'}
+                  {myMember ? myMember.name : 'Bạn là ai?'}
                 </button>
               </div>
             )}

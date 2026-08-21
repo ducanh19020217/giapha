@@ -31,33 +31,35 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => 
            }} 
       />
 
-      <header className="w-full p-4 flex justify-end items-center gap-2 relative z-50">
+      <header className="w-full p-3 sm:p-4 flex justify-end items-center gap-1.5 sm:gap-2 relative z-50">
         <button
           type="button"
           onClick={() => setIdentityModalOpen(true)}
-          className="text-sm border border-wood-dark/30 text-wood-dark hover:bg-wood-dark hover:text-white px-4 py-2 rounded transition-colors shadow-sm font-medium bg-white/50 backdrop-blur-sm"
+          className="min-w-0 truncate max-w-[120px] sm:max-w-none text-xs sm:text-sm border border-wood-dark/30 text-wood-dark hover:bg-wood-dark hover:text-white px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full sm:rounded transition-colors shadow-sm font-medium bg-white/50 backdrop-blur-sm"
         >
-          {myMember ? <>Bạn: <span className="font-bold">{myMember.name}</span></> : 'Bạn là ai?'}
+          {myMember ? myMember.name : 'Bạn là ai?'}
         </button>
         {user ? (
-          <div className="flex items-center gap-4 bg-white/50 px-4 py-2 rounded-lg shadow-sm backdrop-blur-sm border border-wood/20">
-            <span className="text-sm font-medium text-wood-dark">
-              Xin chào, <span className="text-burgundy font-bold">{user.username}</span>
+          <div className="flex items-center gap-2 sm:gap-4 bg-white/50 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full sm:rounded-lg shadow-sm backdrop-blur-sm border border-wood/20">
+            <span className="text-xs sm:text-sm font-medium text-wood-dark truncate max-w-[80px] sm:max-w-none">
+              <span className="hidden sm:inline">Xin chào, </span>
+              <span className="text-burgundy font-bold">{user.username}</span>
             </span>
-            <button 
-              onClick={() => { logout(); window.location.reload(); }} 
-              className="text-sm bg-wood hover:bg-wood-dark text-white px-4 py-2 rounded transition-colors shadow-sm font-medium"
+            <button
+              onClick={() => { logout(); window.location.reload(); }}
+              className="flex-shrink-0 text-xs sm:text-sm bg-wood hover:bg-wood-dark text-white px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full sm:rounded transition-colors shadow-sm font-medium"
             >
               Đăng xuất
             </button>
           </div>
         ) : (
-          <button 
+          <button
             type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLoginClick(); }} 
-            className="text-sm border-2 border-burgundy text-burgundy hover:bg-burgundy hover:text-white px-4 py-2 rounded transition-all shadow-sm font-medium bg-white/50 backdrop-blur-sm"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLoginClick(); }}
+            className="flex-shrink-0 text-xs sm:text-sm border-2 border-burgundy text-burgundy hover:bg-burgundy hover:text-white px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full sm:rounded transition-all shadow-sm font-medium bg-white/50 backdrop-blur-sm"
           >
-            Đăng Nhập Quản Trị
+            <span className="sm:hidden">Đăng nhập</span>
+            <span className="hidden sm:inline">Đăng Nhập Quản Trị</span>
           </button>
         )}
       </header>

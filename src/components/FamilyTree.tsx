@@ -406,11 +406,11 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
 
   return (
     <div className="w-full h-full relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#fdfbf7] via-[#f7f2ea] to-[#eee4d5]">
-      <div className="absolute top-6 right-6 z-40 flex flex-col md:flex-row items-end md:items-center gap-4 bg-white/70 backdrop-blur-md px-5 py-3 rounded-2xl shadow-xl border border-white/60">
+      <div className="absolute top-20 right-3 left-3 md:left-auto md:top-6 md:right-6 z-40 flex flex-col md:flex-row items-stretch md:items-center gap-2 md:gap-4 bg-white/70 backdrop-blur-md px-3 py-2.5 md:px-5 md:py-3 rounded-2xl shadow-xl border border-white/60">
         <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-wood-light" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Tìm kiếm thành viên..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -419,12 +419,12 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
         </div>
         <div className="w-px h-6 bg-wood-light/20 hidden md:block"></div>
         <div className="flex items-center gap-2 whitespace-nowrap cursor-pointer group">
-          <input 
-            type="checkbox" 
-            id="filterLiving" 
+          <input
+            type="checkbox"
+            id="filterLiving"
             checked={filterLiving}
             onChange={(e) => setFilterLiving(e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300 text-burgundy focus:ring-burgundy cursor-pointer"
+            className="w-4 h-4 rounded border-gray-300 text-burgundy focus:ring-burgundy cursor-pointer flex-shrink-0"
           />
           <label htmlFor="filterLiving" className="text-sm text-wood-dark cursor-pointer font-medium group-hover:text-burgundy transition-colors">
             Nổi bật người còn sống
