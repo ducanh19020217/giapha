@@ -270,7 +270,7 @@ function App() {
     }
   };
 
-  const handleAddEvent = async (data: Partial<FamilyEvent>) => {
+  const handleAddEvent = async (data: Partial<FamilyEvent>, notifyFamilyGroup: boolean) => {
     try {
       await api.addEvent(data);
       await fetchEventsData();
@@ -278,6 +278,18 @@ function App() {
     } catch (error) {
       console.error('Failed to add event:', error);
       alert('Lỗi khi thêm sự kiện: ' + error);
+      return;
+    }
+
+    if (notifyFamilyGroup) {
+      const linked = data.memberId ? members.find(m => m.id === data.memberId) : undefined;
+      const date = `${data.day}/${data.month}${data.year ? '/' + data.year : ''}${data.isLunar ? ' (Âm lịch)' : ''}`;
+      const message = `📅 ${data.title}${linked ? ' — ' + linked.name : ''}\nNgày: ${date}${data.note ? '\n' + data.note : ''}`;
+      try {
+        await api.sendNotification({ target: 'ALL', channels: { telegram: true, email: false }, message });
+      } catch (error) {
+        alert('Đã lưu sự kiện, nhưng gửi thông báo vào nhóm lỗi: ' + error);
+      }
     }
   };
 

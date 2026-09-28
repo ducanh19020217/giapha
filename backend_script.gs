@@ -116,6 +116,20 @@ function doPost(e) {
         result = getAuditLog();
         break;
 
+      // --- Gửi thông báo (cả dòng họ / theo nhánh, gửi ngay hoặc hẹn giờ) ---
+      case 'SEND_NOTIFICATION':
+        result = sendNotification(data, session);
+        break;
+      case 'PREVIEW_NOTIFICATION_RECIPIENTS':
+        result = previewNotificationRecipients(data);
+        break;
+      case 'GET_SCHEDULED_NOTIFICATIONS':
+        result = getScheduledNotifications();
+        break;
+      case 'CANCEL_SCHEDULED_NOTIFICATION':
+        result = cancelScheduledNotification(data);
+        break;
+
       // --- Đề xuất chỉnh sửa từ khách (chờ Admin duyệt) ---
       case 'SUBMIT_EDIT_REQUEST':
         result = submitEditRequest(data);
@@ -148,7 +162,8 @@ function doPost(e) {
       'ADD_MEMBER', 'ADD_PARENT', 'ADD_SPOUSE', 'MARK_DECEASED', 'UPDATE_MEMBER', 'DELETE_MEMBER',
       'RESTORE_MEMBER', 'PURGE_MEMBER', 'ADD_EVENT', 'DELETE_EVENT', 'RESTORE_EVENT', 'PURGE_EVENT',
       'ADD_USER', 'DELETE_USER', 'CHANGE_PASSWORD', 'SUBMIT_EDIT_REQUEST', 'APPROVE_PENDING_EDIT', 'REJECT_PENDING_EDIT',
-      'BULK_IMPORT_MEMBERS', 'BULK_IMPORT_EVENTS', 'SHIFT_GENERATIONS'
+      'BULK_IMPORT_MEMBERS', 'BULK_IMPORT_EVENTS', 'SHIFT_GENERATIONS',
+      'SEND_NOTIFICATION', 'CANCEL_SCHEDULED_NOTIFICATION'
     ];
     if (MUTATING_ACTIONS.indexOf(action) > -1) {
       logAudit_(action, data, result, session);
@@ -195,6 +210,8 @@ function getSheet(sheetName) {
       sheet.appendRow(['token', 'userId', 'username', 'role', 'createdAt', 'expiresAt']);
     } else if (sheetName === 'AuditLog') {
       sheet.appendRow(['id', 'timestamp', 'action', 'targetId', 'targetName', 'actor', 'details']);
+    } else if (sheetName === 'ScheduledNotifications') {
+      sheet.appendRow(['id', 'sendAt', 'target', 'branchMemberId', 'alsoIndividuals', 'channels', 'message', 'status', 'createdBy', 'createdAt', 'sentAt', 'result']);
     } else if (sheetName === 'PendingEdits') {
       sheet.appendRow(['id', 'memberId', 'memberName', 'proposedChanges', 'submitterName', 'submitterContact', 'status', 'createdAt', 'reviewedAt']);
     }
@@ -219,7 +236,9 @@ function runOneTimeSetup() {
   ensureColumn_('Members', 'email');
   ensureColumn_('Members', 'isDeleted');
   ensureColumn_('Members', 'telegramChatId');
+  ensureColumn_('Members', 'branchChatId');
   ensureColumn_('Events', 'isDeleted');
+  getSheet('ScheduledNotifications');
   getSheet('Sessions');
   getSheet('AuditLog');
   getSheet('PendingEdits');
@@ -510,7 +529,7 @@ function markDeceased(data) {
 const MEMBER_EDITABLE_FIELDS = [
   'name', 'gender', 'birthDate', 'isDeceased', 'deathDate', 'generation', 'birthOrder',
   'fatherId', 'motherId', 'relationType', 'avatarUrl', 'academicLevel', 'career',
-  'biography', 'email', 'telegramChatId', 'isDeleted'
+  'biography', 'email', 'telegramChatId', 'branchChatId', 'isDeleted'
 ];
 
 function updateMember(data) {
@@ -1244,17 +1263,48 @@ const REMINDER_DAYS_AHEAD = 3; // Gửi nhắc trước bao nhiêu ngày
 // (tạo bot miễn phí qua @BotFather trên Telegram để lấy Token). Để trống "" = bỏ qua.
 const TELEGRAM_BOT_TOKEN = "";
 
-function sendTelegramMessage_(chatId, text) {
-  if (!TELEGRAM_BOT_TOKEN || !chatId) return;
+// Cấu hình nên đặt trong Apps Script > Cài đặt dự án (⚙️) > Thuộc tính tập lệnh (Script Properties)
+// thay vì viết thẳng vào code — để đưa code lên GitHub không bị lộ Token:
+//   TELEGRAM_BOT_TOKEN      = Token bot lấy từ @BotFather
+//   TELEGRAM_GROUP_CHAT_ID  = Chat ID nhóm Telegram chung của dòng họ (số âm, VD: -1001234567890)
+// Hằng số TELEGRAM_BOT_TOKEN ở trên vẫn dùng được (dự phòng) nếu không đặt Script Properties.
+function getConfig_(key, fallback) {
   try {
-    UrlFetchApp.fetch('https://api.telegram.org/bot' + TELEGRAM_BOT_TOKEN + '/sendMessage', {
+    const value = PropertiesService.getScriptProperties().getProperty(key);
+    if (value) return String(value).trim();
+  } catch (err) {
+    Logger.log('Đọc Script Properties lỗi: ' + err);
+  }
+  return fallback || '';
+}
+
+function getTelegramToken_() {
+  return getConfig_('TELEGRAM_BOT_TOKEN', TELEGRAM_BOT_TOKEN);
+}
+
+function getFamilyGroupChatId_() {
+  return getConfig_('TELEGRAM_GROUP_CHAT_ID', '');
+}
+
+// Trả về true nếu Telegram nhận tin thành công
+function sendTelegramMessage_(chatId, text) {
+  const token = getTelegramToken_();
+  if (!token || !chatId) return false;
+  try {
+    const res = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
       method: 'post',
       contentType: 'application/json',
-      payload: JSON.stringify({ chat_id: chatId, text: text }),
+      payload: JSON.stringify({ chat_id: String(chatId).trim(), text: text }),
       muteHttpExceptions: true
     });
+    if (res.getResponseCode() !== 200) {
+      Logger.log('Telegram từ chối tin gửi tới ' + chatId + ': ' + res.getContentText());
+      return false;
+    }
+    return true;
   } catch (err) {
     Logger.log('Gửi Telegram thất bại tới ' + chatId + ': ' + err);
+    return false;
   }
 }
 
@@ -1528,7 +1578,9 @@ function checkAndSendReminders() {
     .map(function (m) { return m.telegramChatId; })
     .filter(function (chatId) { return chatId; });
 
-  if (emailRecipients.length === 0 && telegramRecipients.length === 0) {
+  const familyGroupChatId = getFamilyGroupChatId_();
+
+  if (emailRecipients.length === 0 && telegramRecipients.length === 0 && !familyGroupChatId) {
     Logger.log('Không có email/Telegram nào được cấu hình, bỏ qua gửi nhắc nhở.');
     return;
   }
@@ -1589,11 +1641,13 @@ function checkAndSendReminders() {
     });
   }
 
-  if (telegramRecipients.length > 0 && TELEGRAM_BOT_TOKEN) {
+  if ((telegramRecipients.length > 0 || familyGroupChatId) && getTelegramToken_()) {
     const textBody = buildReminderPlainText_(upcoming);
     telegramRecipients.forEach(function (chatId) {
       sendTelegramMessage_(chatId, textBody);
     });
+    // Gửi thêm 1 bản tổng hợp vào nhóm Telegram chung của dòng họ
+    if (familyGroupChatId) sendTelegramMessage_(familyGroupChatId, textBody);
   }
 }
 
@@ -1613,4 +1667,278 @@ function createDailyReminderTrigger() {
     .create();
 
   Logger.log('Đã tạo trigger gửi nhắc nhở hàng ngày lúc ~7h sáng.');
+}
+
+
+// ==========================================
+// GỬI THÔNG BÁO: cả dòng họ hoặc theo nhánh, gửi ngay hoặc hẹn giờ
+// ==========================================
+// - Cả dòng họ ('ALL'): gửi vào nhóm Telegram chung (TELEGRAM_GROUP_CHAT_ID). Tùy chọn
+//   alsoIndividuals = gửi thêm riêng cho từng thành viên có Telegram Chat ID / email.
+// - Theo nhánh ('BRANCH'): người đứng đầu nhánh + toàn bộ con cháu + vợ/chồng của họ, gửi
+//   riêng cho từng người, cộng nhóm Telegram của nhánh (cột branchChatId của người đứng đầu).
+// - Hẹn giờ: lưu vào Sheet "ScheduledNotifications"; trigger processScheduledNotifications
+//   (tạo bằng createNotificationTrigger, chạy mỗi 15 phút) gửi các tin đã đến giờ.
+
+// Người đứng đầu nhánh + mọi hậu duệ (theo cha hoặc mẹ) + vợ/chồng của những người đó
+function getBranchMembers_(members, rootId) {
+  const byId = {};
+  members.forEach(function (m) { byId[m.id] = m; });
+  if (!byId[rootId]) throw new Error('Không tìm thấy người đứng đầu nhánh');
+
+  const bloodIds = {};
+  const queue = [rootId];
+  bloodIds[rootId] = true;
+  while (queue.length > 0) {
+    const id = queue.shift();
+    members.forEach(function (m) {
+      if ((m.fatherId === id || m.motherId === id) && !bloodIds[m.id]) {
+        bloodIds[m.id] = true;
+        queue.push(m.id);
+      }
+    });
+  }
+
+  const result = {};
+  Object.keys(bloodIds).forEach(function (id) {
+    result[id] = byId[id];
+    (byId[id].spouses || []).forEach(function (s) {
+      if (byId[s.id]) result[s.id] = byId[s.id];
+    });
+  });
+  return Object.keys(result).map(function (id) { return result[id]; });
+}
+
+function isValidEmail_(email) {
+  return email && String(email).indexOf('@') > -1;
+}
+
+// Xác định nơi nhận: danh sách nhóm Telegram + danh sách từng người + người chưa có liên lạc
+function resolveRecipients_(data) {
+  const members = getMembers();
+  const channels = data.channels || { telegram: true, email: false };
+  const groups = [];
+  let people = [];
+  let label = 'Cả dòng họ';
+
+  if (data.target === 'BRANCH') {
+    const root = members.find(function (m) { return m.id === data.branchMemberId; });
+    if (!root) throw new Error('Chưa chọn nhánh hoặc không tìm thấy người đứng đầu nhánh');
+    label = 'Nhánh ' + root.name;
+    people = getBranchMembers_(members, root.id);
+    if (root.branchChatId) groups.push({ label: 'Nhóm Telegram nhánh ' + root.name, chatId: String(root.branchChatId) });
+  } else {
+    const familyGroup = getFamilyGroupChatId_();
+    if (familyGroup) groups.push({ label: 'Nhóm Telegram dòng họ', chatId: familyGroup });
+    if (data.alsoIndividuals) people = members;
+  }
+
+  const reachable = [];
+  const missing = [];
+  people.forEach(function (m) {
+    const hasTelegram = channels.telegram && m.telegramChatId;
+    const hasEmail = channels.email && isValidEmail_(m.email);
+    if (hasTelegram || hasEmail) {
+      reachable.push({ name: m.name, telegramChatId: hasTelegram ? String(m.telegramChatId) : '', email: hasEmail ? String(m.email) : '' });
+    } else if (!m.isDeceased) {
+      missing.push(m.name);
+    }
+  });
+
+  return {
+    label: label,
+    groups: channels.telegram ? groups : [],
+    reachable: reachable,
+    missing: missing,
+    telegramConfigured: Boolean(getTelegramToken_())
+  };
+}
+
+// Xem trước người nhận (không trả Chat ID/email ra ngoài, chỉ tên)
+function previewNotificationRecipients(data) {
+  const r = resolveRecipients_(data);
+  return {
+    label: r.label,
+    groups: r.groups.map(function (g) { return g.label; }),
+    reachable: r.reachable.map(function (p) { return p.name; }),
+    missing: r.missing,
+    telegramConfigured: r.telegramConfigured,
+    familyGroupConfigured: Boolean(getFamilyGroupChatId_())
+  };
+}
+
+function deliverNotification_(data, senderName) {
+  if (!data.message || !String(data.message).trim()) throw new Error('Nội dung thông báo đang trống');
+  const r = resolveRecipients_(data);
+  const header = '📢 THÔNG BÁO DÒNG HỌ' + (data.target === 'BRANCH' ? ' — ' + r.label : '');
+  const text = header + '\n\n' + String(data.message).trim() + (senderName ? '\n\n— ' + senderName : '');
+
+  const summary = { label: r.label, groupsSent: [], groupsFailed: [], telegramSent: 0, emailSent: 0, failed: [], missing: r.missing };
+
+  if (r.groups.length > 0 && !r.telegramConfigured) throw new Error('Chưa cấu hình TELEGRAM_BOT_TOKEN');
+  r.groups.forEach(function (g) {
+    if (sendTelegramMessage_(g.chatId, text)) summary.groupsSent.push(g.label);
+    else summary.groupsFailed.push(g.label);
+  });
+
+  r.reachable.forEach(function (p) {
+    let ok = false;
+    if (p.telegramChatId && sendTelegramMessage_(p.telegramChatId, text)) { summary.telegramSent++; ok = true; }
+    if (p.email) {
+      try {
+        MailApp.sendEmail({ to: p.email, subject: '[Gia Phả] ' + header.replace('📢 ', ''), body: text });
+        summary.emailSent++;
+        ok = true;
+      } catch (err) {
+        Logger.log('Gửi email thất bại tới ' + p.email + ': ' + err);
+      }
+    }
+    if (!ok) summary.failed.push(p.name);
+  });
+
+  if (summary.groupsSent.length === 0 && summary.telegramSent === 0 && summary.emailSent === 0) {
+    throw new Error('Không gửi được tới ai. Kiểm tra lại cấu hình Telegram (Token, Chat ID nhóm) hoặc liên lạc của thành viên.');
+  }
+  return summary;
+}
+
+function sendNotification(data, session) {
+  const senderName = session ? session.username : '';
+  const sendAt = data.sendAt ? new Date(data.sendAt) : null;
+
+  // Hẹn giờ: chỉ lưu lại, trigger sẽ gửi khi đến giờ
+  if (sendAt && !isNaN(sendAt.getTime()) && sendAt.getTime() > Date.now() + 60 * 1000) {
+    resolveRecipients_(data); // kiểm tra hợp lệ ngay (VD: nhánh không tồn tại)
+    const sheet = getSheet('ScheduledNotifications');
+    const id = generateUUID();
+    sheet.appendRow([
+      id, sendAt, data.target === 'BRANCH' ? 'BRANCH' : 'ALL', data.branchMemberId || '',
+      Boolean(data.alsoIndividuals), JSON.stringify(data.channels || { telegram: true }), String(data.message || ''),
+      'PENDING', senderName, new Date(), '', ''
+    ]);
+    return { scheduled: true, id: id, sendAt: sendAt.toISOString() };
+  }
+
+  return Object.assign({ scheduled: false }, deliverNotification_(data, senderName));
+}
+
+function scheduledRowToObject_(headers, row) {
+  const obj = {};
+  headers.forEach(function (h, i) { obj[h] = row[i]; });
+  const toIso = function (v) { return v ? new Date(v).toISOString() : ''; };
+  return {
+    id: obj.id,
+    sendAt: toIso(obj.sendAt),
+    target: obj.target,
+    branchMemberId: obj.branchMemberId,
+    alsoIndividuals: isTruthy_(obj.alsoIndividuals),
+    channels: (function () { try { return JSON.parse(obj.channels); } catch (e) { return { telegram: true }; } })(),
+    message: obj.message,
+    status: obj.status,
+    createdBy: obj.createdBy,
+    createdAt: toIso(obj.createdAt),
+    sentAt: toIso(obj.sentAt),
+    result: obj.result
+  };
+}
+
+function getScheduledNotifications() {
+  const sheet = getSheet('ScheduledNotifications');
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
+  const headers = values[0];
+  return values.slice(1)
+    .map(function (row) { return scheduledRowToObject_(headers, row); })
+    .sort(function (a, b) { return b.sendAt.localeCompare(a.sendAt); })
+    .slice(0, 100);
+}
+
+function cancelScheduledNotification(data) {
+  const sheet = getSheet('ScheduledNotifications');
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
+  const idIdx = headers.indexOf('id');
+  const statusIdx = headers.indexOf('status');
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][idIdx] === data.id) {
+      if (values[i][statusIdx] !== 'PENDING') throw new Error('Thông báo này đã được gửi hoặc đã hủy');
+      sheet.getRange(i + 1, statusIdx + 1).setValue('CANCELLED');
+      return { id: data.id, status: 'CANCELLED' };
+    }
+  }
+  throw new Error('Không tìm thấy thông báo đã hẹn');
+}
+
+// Trigger chạy mỗi 15 phút: gửi các thông báo hẹn giờ đã đến giờ
+function processScheduledNotifications() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) return; // lần chạy trước chưa xong
+  try {
+    const sheet = getSheet('ScheduledNotifications');
+    const values = sheet.getDataRange().getValues();
+    if (values.length <= 1) return;
+    const headers = values[0];
+    const col = function (name) { return headers.indexOf(name); };
+    const now = Date.now();
+
+    for (let i = 1; i < values.length; i++) {
+      const n = scheduledRowToObject_(headers, values[i]);
+      if (n.status !== 'PENDING' || !n.sendAt || new Date(n.sendAt).getTime() > now) continue;
+
+      let status = 'SENT';
+      let result = '';
+      try {
+        const summary = deliverNotification_(n, n.createdBy);
+        result = JSON.stringify(summary);
+      } catch (err) {
+        status = 'FAILED';
+        result = String(err);
+      }
+      sheet.getRange(i + 1, col('status') + 1).setValue(status);
+      sheet.getRange(i + 1, col('sentAt') + 1).setValue(new Date());
+      sheet.getRange(i + 1, col('result') + 1).setValue(result.slice(0, 1000));
+    }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Chạy 1 LẦN từ Apps Script editor để bật gửi thông báo hẹn giờ (kiểm tra mỗi 15 phút)
+function createNotificationTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'processScheduledNotifications') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('processScheduledNotifications').timeBased().everyMinutes(15).create();
+  Logger.log('Đã bật trigger gửi thông báo hẹn giờ (mỗi 15 phút).');
+}
+
+// Chạy từ Apps Script editor để TÌM CHAT ID: liệt kê các nhóm/người vừa nhắn cho bot.
+// Cách dùng: thêm bot vào nhóm, nhắn 1 tin bất kỳ trong nhóm (VD: "/start"), rồi chạy hàm này
+// và xem mục "Nhật ký thực thi" (Execution log).
+function listTelegramChats() {
+  const token = getTelegramToken_();
+  if (!token) { Logger.log('Chưa cấu hình TELEGRAM_BOT_TOKEN trong Script Properties.'); return; }
+  const res = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/getUpdates', { muteHttpExceptions: true });
+  const body = JSON.parse(res.getContentText());
+  if (!body.ok) { Logger.log('Telegram báo lỗi: ' + res.getContentText()); return; }
+  const seen = {};
+  (body.result || []).forEach(function (u) {
+    const msg = u.message || u.my_chat_member || u.channel_post || u.edited_message;
+    const chat = msg && msg.chat;
+    if (!chat || seen[chat.id]) return;
+    seen[chat.id] = true;
+    const name = chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(' ') || chat.username || '';
+    Logger.log((chat.type === 'private' ? 'Người' : 'Nhóm') + ': ' + name + '  →  Chat ID: ' + chat.id);
+  });
+  if (Object.keys(seen).length === 0) {
+    Logger.log('Chưa thấy tin nhắn nào. Hãy nhắn 1 tin cho bot (hoặc trong nhóm có bot) rồi chạy lại.');
+  }
+}
+
+// Chạy từ Apps Script editor để thử gửi 1 tin vào nhóm dòng họ
+function testTelegramGroup() {
+  const groupId = getFamilyGroupChatId_();
+  if (!groupId) { Logger.log('Chưa cấu hình TELEGRAM_GROUP_CHAT_ID trong Script Properties.'); return; }
+  const ok = sendTelegramMessage_(groupId, '✅ Kết nối thành công! Nhóm này sẽ nhận thông báo từ Gia Phả.');
+  Logger.log(ok ? 'Đã gửi tin thử vào nhóm.' : 'Gửi thất bại — xem lỗi ở dòng log phía trên.');
 }

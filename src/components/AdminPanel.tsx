@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AppUser, AuditLogEntry, PendingEdit, TrashData } from '../types/admin';
+import { AppUser, AuditLogEntry, PendingEdit, TrashData, NotificationPreview, NotificationResult, NotificationTarget, ScheduledNotification } from '../types/admin';
 import * as api from '../services/api';
 import { DetailedMember } from '../types/member';
 
-type Tab = 'pending' | 'trash' | 'users' | 'audit' | 'generation' | 'account';
+type Tab = 'pending' | 'notify' | 'trash' | 'users' | 'audit' | 'generation' | 'account';
 
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'pending', label: 'Đề xuất chờ duyệt' },
+  { key: 'notify', label: 'Gửi thông báo' },
   { key: 'trash', label: 'Thùng rác' },
   { key: 'users', label: 'Tài khoản' },
   { key: 'audit', label: 'Nhật ký thao tác' },
@@ -51,6 +52,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ members, onDataChanged }
 
       <div className="bg-white rounded-xl shadow-sm border border-wood/10 p-5 md:p-6 max-w-3xl mx-auto">
         {tab === 'pending' && <PendingEditsTab onDataChanged={onDataChanged} />}
+        {tab === 'notify' && <NotifyTab members={members} />}
         {tab === 'trash' && <TrashTab onDataChanged={onDataChanged} />}
         {tab === 'users' && <UsersTab />}
         {tab === 'audit' && <AuditLogTab />}
@@ -363,6 +365,248 @@ function AuditLogTab() {
 // ==========================================
 // ĐỔI MẬT KHẨU
 // ==========================================
+// --- GỬI THÔNG BÁO: cả dòng họ (nhóm Telegram) hoặc theo nhánh, gửi ngay hoặc hẹn giờ ---
+const MESSAGE_TEMPLATES: Array<{ label: string; text: string }> = [
+  { label: 'Họp họ', text: 'Kính mời các thành viên về dự buổi họp họ lúc 8h00 sáng Chủ Nhật ngày .../.../... tại nhà thờ họ.\nNội dung: ...\nRất mong mọi người thu xếp tham dự đông đủ.' },
+  { label: 'Giỗ Tổ', text: 'Ngày .../... (Âm lịch) là ngày Giỗ Tổ của dòng họ. Kính mời con cháu các chi về dâng hương lúc ...h tại ...' },
+  { label: 'Báo hiếu', text: 'Dòng họ xin báo tin: Cụ/Ông/Bà ... đã từ trần lúc ...h ngày .../.../..., hưởng thọ ... tuổi.\nLễ viếng từ ...h ngày ..., lễ truy điệu lúc ...h ngày ..., an táng tại ...' },
+  { label: 'Chúc mừng', text: 'Dòng họ xin chúc mừng ... nhân dịp ... Chúc ... luôn mạnh khỏe, hạnh phúc và thành công!' },
+];
+
+const STATUS_LABEL: Record<ScheduledNotification['status'], { text: string; className: string }> = {
+  PENDING: { text: 'Chờ gửi', className: 'bg-amber-100 text-amber-800' },
+  SENT: { text: 'Đã gửi', className: 'bg-green-100 text-green-800' },
+  FAILED: { text: 'Lỗi', className: 'bg-red-100 text-red-700' },
+  CANCELLED: { text: 'Đã hủy', className: 'bg-gray-100 text-gray-600' },
+};
+
+// Giá trị mặc định cho ô hẹn giờ: 1 tiếng nữa, theo giờ máy người dùng (định dạng datetime-local)
+const defaultScheduleValue = () => {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setMinutes(0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+function NotifyTab({ members }: { members: DetailedMember[] }) {
+  const [target, setTarget] = useState<NotificationTarget>('ALL');
+  const [branchMemberId, setBranchMemberId] = useState('');
+  const [alsoIndividuals, setAlsoIndividuals] = useState(false);
+  const [telegram, setTelegram] = useState(true);
+  const [email, setEmail] = useState(false);
+  const [message, setMessage] = useState('');
+  const [when, setWhen] = useState<'now' | 'later'>('now');
+  const [sendAtLocal, setSendAtLocal] = useState(defaultScheduleValue);
+  const [preview, setPreview] = useState<NotificationPreview | null>(null);
+  const [previewError, setPreviewError] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [result, setResult] = useState<NotificationResult | null>(null);
+  const [error, setError] = useState('');
+  const [scheduled, setScheduled] = useState<ScheduledNotification[]>([]);
+
+  // Chỉ người máu mủ (có cha/mẹ trên cây) hoặc người gốc mới đứng đầu nhánh được; sắp theo đời
+  const branchHeads = [...members]
+    .filter(m => m.fatherId || m.motherId || !members.some(o => o.spouses?.some(s => s.id === m.id) && (o.fatherId || o.motherId)))
+    .sort((a, b) => a.generation - b.generation || a.birthOrder - b.birthOrder);
+  const memberName = (id?: string) => members.find(m => m.id === id)?.name || '';
+
+  const loadScheduled = useCallback(() => {
+    api.getScheduledNotifications().then(setScheduled).catch(() => setScheduled([]));
+  }, []);
+  useEffect(() => { loadScheduled(); }, [loadScheduled]);
+
+  // Xem trước người nhận mỗi khi đổi nơi gửi / kênh
+  useEffect(() => {
+    if (target === 'BRANCH' && !branchMemberId) { setPreview(null); return; }
+    let cancelled = false;
+    setPreviewError('');
+    api.previewNotificationRecipients({ target, branchMemberId, alsoIndividuals, channels: { telegram, email } })
+      .then(p => { if (!cancelled) setPreview(p); })
+      .catch(err => { if (!cancelled) { setPreview(null); setPreviewError(err instanceof Error ? err.message : String(err)); } });
+    return () => { cancelled = true; };
+  }, [target, branchMemberId, alsoIndividuals, telegram, email]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(''); setResult(null);
+    if (!telegram && !email) { setError('Chọn ít nhất 1 kênh gửi'); return; }
+    if (target === 'BRANCH' && !branchMemberId) { setError('Chọn người đứng đầu nhánh'); return; }
+    const sendAt = when === 'later' ? new Date(sendAtLocal) : null;
+    if (sendAt && (isNaN(sendAt.getTime()) || sendAt.getTime() < Date.now() + 60 * 1000)) {
+      setError('Thời điểm hẹn phải ở tương lai'); return;
+    }
+    const where = target === 'ALL' ? 'cả dòng họ' : `nhánh ${memberName(branchMemberId)}`;
+    const confirmText = sendAt
+      ? `Hẹn gửi thông báo tới ${where} lúc ${sendAt.toLocaleString('vi-VN')}?`
+      : `Gửi ngay thông báo tới ${where}?`;
+    if (!window.confirm(confirmText)) return;
+
+    setIsSending(true);
+    try {
+      const res = await api.sendNotification({
+        target, branchMemberId: target === 'BRANCH' ? branchMemberId : undefined,
+        alsoIndividuals, channels: { telegram, email }, message,
+        sendAt: sendAt ? sendAt.toISOString() : undefined,
+      });
+      setResult(res);
+      setMessage('');
+      loadScheduled();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    if (!window.confirm('Hủy thông báo đã hẹn này?')) return;
+    try {
+      await api.cancelScheduledNotification(id);
+      loadScheduled();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const radio = (active: boolean) =>
+    `flex-1 text-left border rounded-lg p-3 cursor-pointer transition-colors ${active ? 'border-burgundy bg-burgundy/5' : 'border-gray-200 hover:border-bronze'}`;
+
+  return (
+    <div className="grid lg:grid-cols-[1fr_360px] gap-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <div className="bg-red-50 text-red-600 p-2.5 rounded text-sm border border-red-200">{error}</div>}
+        {result && (
+          <div className="bg-green-50 text-green-800 p-3 rounded text-sm border border-green-200 space-y-1">
+            {result.scheduled ? (
+              <p>Đã hẹn gửi lúc <strong>{new Date(result.sendAt || '').toLocaleString('vi-VN')}</strong>. Xem ở danh sách bên cạnh.</p>
+            ) : (
+              <>
+                <p><strong>Đã gửi — {result.label}.</strong></p>
+                {!!result.groupsSent?.length && <p>Nhóm: {result.groupsSent.join(', ')}</p>}
+                <p>Gửi riêng: {result.telegramSent || 0} qua Telegram, {result.emailSent || 0} qua email.</p>
+                {!!result.groupsFailed?.length && <p className="text-red-700">Nhóm gửi lỗi: {result.groupsFailed.join(', ')}</p>}
+                {!!result.failed?.length && <p className="text-red-700">Gửi lỗi: {result.failed.join(', ')}</p>}
+              </>
+            )}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-wood-dark mb-2">Gửi tới</label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <label className={radio(target === 'ALL')}>
+              <input type="radio" className="sr-only" checked={target === 'ALL'} onChange={() => setTarget('ALL')} />
+              <div className="font-medium text-sm">Cả dòng họ</div>
+              <div className="text-xs text-gray-500">Vào nhóm Telegram chung</div>
+            </label>
+            <label className={radio(target === 'BRANCH')}>
+              <input type="radio" className="sr-only" checked={target === 'BRANCH'} onChange={() => setTarget('BRANCH')} />
+              <div className="font-medium text-sm">Theo nhánh</div>
+              <div className="text-xs text-gray-500">Con cháu + vợ/chồng của 1 người</div>
+            </label>
+          </div>
+        </div>
+
+        {target === 'BRANCH' ? (
+          <div>
+            <label className="block text-sm font-medium text-wood-dark mb-1">Người đứng đầu nhánh</label>
+            <select value={branchMemberId} onChange={e => setBranchMemberId(e.target.value)} className="w-full border rounded p-2 outline-none bg-white">
+              <option value="">— Chọn —</option>
+              {branchHeads.map(m => <option key={m.id} value={m.id}>Đời {m.generation} · {m.name}</option>)}
+            </select>
+          </div>
+        ) : (
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={alsoIndividuals} onChange={e => setAlsoIndividuals(e.target.checked)} className="rounded text-burgundy" />
+            Gửi thêm riêng cho từng thành viên có liên lạc
+          </label>
+        )}
+
+        <div className="flex gap-4 text-sm">
+          <span className="font-medium text-wood-dark">Kênh:</span>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={telegram} onChange={e => setTelegram(e.target.checked)} className="rounded text-burgundy" />Telegram</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={email} onChange={e => setEmail(e.target.checked)} className="rounded text-burgundy" />Email</label>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+            <label className="text-sm font-medium text-wood-dark">Nội dung</label>
+            <div className="flex gap-1 flex-wrap">
+              {MESSAGE_TEMPLATES.map(t => (
+                <button key={t.label} type="button" onClick={() => setMessage(t.text)} className="text-xs px-2 py-1 rounded-full bg-bronze/10 text-bronze-dark hover:bg-bronze/20">
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <textarea required value={message} onChange={e => setMessage(e.target.value)} rows={6} className="w-full border rounded p-2 focus:border-bronze outline-none text-sm" placeholder="Nhập nội dung thông báo, hoặc chọn một mẫu ở trên" />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex gap-4 text-sm">
+            <label className="flex items-center gap-1.5"><input type="radio" checked={when === 'now'} onChange={() => setWhen('now')} className="text-burgundy" />Gửi ngay</label>
+            <label className="flex items-center gap-1.5"><input type="radio" checked={when === 'later'} onChange={() => setWhen('later')} className="text-burgundy" />Hẹn giờ</label>
+          </div>
+          {when === 'later' && (
+            <div>
+              <input type="datetime-local" value={sendAtLocal} onChange={e => setSendAtLocal(e.target.value)} className="border rounded p-2 outline-none text-sm" />
+              <p className="text-xs text-gray-500 mt-1">Tin sẽ đến trong vòng khoảng 15 phút sau giờ hẹn.</p>
+            </div>
+          )}
+        </div>
+
+        <button type="submit" disabled={isSending} className="bg-burgundy hover:bg-burgundy-dark text-white px-5 py-2 rounded font-medium disabled:opacity-50">
+          {isSending ? 'Đang gửi...' : when === 'later' ? 'Hẹn gửi' : 'Gửi thông báo'}
+        </button>
+      </form>
+
+      <div className="space-y-4">
+        <div className="bg-[#faf6ef] border border-wood/10 rounded-lg p-3 text-sm">
+          <div className="font-medium text-wood-dark mb-2">Sẽ gửi tới</div>
+          {previewError && <p className="text-red-600">{previewError}</p>}
+          {!preview && !previewError && <p className="text-gray-500">{target === 'BRANCH' ? 'Chọn người đứng đầu nhánh để xem.' : 'Đang tải...'}</p>}
+          {preview && (
+            <div className="space-y-1.5">
+              {!preview.telegramConfigured && telegram && <p className="text-red-600">Chưa cấu hình Telegram Bot Token trong Apps Script.</p>}
+              {target === 'ALL' && !preview.familyGroupConfigured && telegram && <p className="text-amber-700">Chưa cấu hình Chat ID nhóm dòng họ.</p>}
+              {preview.groups.map(g => <p key={g}>✓ {g}</p>)}
+              {preview.reachable.length > 0 && <p>✓ {preview.reachable.length} người: {preview.reachable.slice(0, 8).join(', ')}{preview.reachable.length > 8 ? '…' : ''}</p>}
+              {preview.missing.length > 0 && (
+                <p className="text-gray-500">Chưa có liên lạc ({preview.missing.length}): {preview.missing.slice(0, 8).join(', ')}{preview.missing.length > 8 ? '…' : ''}</p>
+              )}
+              {preview.groups.length === 0 && preview.reachable.length === 0 && <p className="text-red-600">Chưa có ai nhận được thông báo này.</p>}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="font-medium text-wood-dark text-sm mb-2">Thông báo đã hẹn</div>
+          {scheduled.length === 0 ? (
+            <p className="text-sm text-gray-500">Chưa có.</p>
+          ) : (
+            <ul className="space-y-2 max-h-96 overflow-y-auto">
+              {scheduled.map(n => (
+                <li key={n.id} className="border rounded-lg p-2.5 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-gray-600">{n.sendAt ? new Date(n.sendAt).toLocaleString('vi-VN') : ''}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_LABEL[n.status]?.className || ''}`}>{STATUS_LABEL[n.status]?.text || n.status}</span>
+                  </div>
+                  <div className="text-xs text-bronze-dark mt-1">{n.target === 'BRANCH' ? `Nhánh ${memberName(n.branchMemberId) || '?'}` : 'Cả dòng họ'}</div>
+                  <p className="text-gray-700 line-clamp-2 mt-0.5 whitespace-pre-line">{n.message}</p>
+                  {n.status === 'FAILED' && n.result && <p className="text-xs text-red-600 mt-1">{n.result}</p>}
+                  {n.status === 'PENDING' && (
+                    <button type="button" onClick={() => handleCancel(n.id)} className="text-xs text-red-600 hover:underline mt-1">Hủy</button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Đặt lại "người đầu tiên là đời thứ mấy": dời số đời của toàn bộ gia phả cùng lúc
 function GenerationTab({ members, onDataChanged }: { members: DetailedMember[]; onDataChanged: () => void }) {
   const currentFirst = members.length > 0 ? Math.min(...members.map(m => m.generation || 1)) : 1;

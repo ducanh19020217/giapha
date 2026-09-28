@@ -1,6 +1,6 @@
 import { DetailedMember } from '../types/member';
 import { FamilyEvent } from '../types/event';
-import { AppUser, AuditLogEntry, PendingEdit, TrashData } from '../types/admin';
+import { AppUser, AuditLogEntry, PendingEdit, TrashData, NotificationRequest, NotificationPreview, NotificationResult, ScheduledNotification } from '../types/admin';
 import { User } from '../context/AuthContext';
 
 // Chờ người dùng điền URL Web App của Google Apps Script vào đây (hoặc .env)
@@ -170,4 +170,21 @@ export const approvePendingEdit = async (id: string): Promise<void> => {
 
 export const rejectPendingEdit = async (id: string): Promise<void> => {
   return await callGas('REJECT_PENDING_EDIT', { id });
+};
+
+// --- Gửi thông báo (cả dòng họ / theo nhánh, gửi ngay hoặc hẹn giờ) ---
+export const sendNotification = async (data: NotificationRequest): Promise<NotificationResult> => {
+  return await callGas('SEND_NOTIFICATION', data);
+};
+
+export const previewNotificationRecipients = async (data: Omit<NotificationRequest, 'message' | 'sendAt'>): Promise<NotificationPreview> => {
+  return await callGas('PREVIEW_NOTIFICATION_RECIPIENTS', data);
+};
+
+export const getScheduledNotifications = async (): Promise<ScheduledNotification[]> => {
+  return await callGas('GET_SCHEDULED_NOTIFICATIONS');
+};
+
+export const cancelScheduledNotification = async (id: string): Promise<void> => {
+  return await callGas('CANCEL_SCHEDULED_NOTIFICATION', { id });
 };

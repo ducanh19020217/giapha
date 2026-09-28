@@ -425,7 +425,7 @@ export const AddParentModal: React.FC<{
 export const AddEventModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Partial<FamilyEvent>) => Promise<void> | void;
+  onSave: (data: Partial<FamilyEvent>, notifyFamilyGroup: boolean) => Promise<void> | void;
   allMembers: DetailedMember[];
   defaultMemberId?: string;
 }> = ({ isOpen, onClose, onSave, allMembers, defaultMemberId }) => {
@@ -436,6 +436,7 @@ export const AddEventModal: React.FC<{
   const [isLunar, setIsLunar] = useState(false);
   const [memberId, setMemberId] = useState(defaultMemberId || '');
   const [note, setNote] = useState('');
+  const [notifyFamilyGroup, setNotifyFamilyGroup] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -455,7 +456,7 @@ export const AddEventModal: React.FC<{
         isLunar,
         memberId: memberId || undefined,
         note: note.trim() || undefined,
-      });
+      }, notifyFamilyGroup);
       setTitle('');
       setDay(1);
       setMonth(1);
@@ -463,6 +464,7 @@ export const AddEventModal: React.FC<{
       setIsLunar(false);
       setMemberId(defaultMemberId || '');
       setNote('');
+      setNotifyFamilyGroup(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -509,6 +511,10 @@ export const AddEventModal: React.FC<{
           <label className="block text-sm font-medium text-wood-dark mb-1">Ghi chú (tùy chọn)</label>
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className="w-full border rounded p-2 outline-none" placeholder="VD: Tổ chức tại nhà thờ họ lúc 8h sáng"></textarea>
         </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={notifyFamilyGroup} onChange={e => setNotifyFamilyGroup(e.target.checked)} className="rounded text-burgundy" />
+          Gửi thông báo sự kiện này vào nhóm Telegram dòng họ
+        </label>
         <button type="submit" disabled={isSubmitting} className="w-full bg-burgundy hover:bg-burgundy-dark text-white py-2 rounded font-medium transition-colors disabled:opacity-50">
           {isSubmitting ? 'Đang xử lý...' : 'Lưu Sự Kiện'}
         </button>

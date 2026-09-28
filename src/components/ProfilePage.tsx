@@ -69,6 +69,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [biography, setBiography] = useState(member.biography || '');
   const [email, setEmail] = useState(member.email || '');
   const [telegramChatId, setTelegramChatId] = useState(member.telegramChatId || '');
+  const [branchChatId, setBranchChatId] = useState(member.branchChatId || '');
   const [avatarUrl, setAvatarUrl] = useState(member.avatarUrl || '');
   const [birthOrder, setBirthOrder] = useState(member.birthOrder || 1);
   const [relationType, setRelationType] = useState(member.relationType || 'BIOLOGICAL');
@@ -88,6 +89,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setBiography(member.biography || '');
     setEmail(member.email || '');
     setTelegramChatId(member.telegramChatId || '');
+    setBranchChatId(member.branchChatId || '');
     setAvatarUrl(member.avatarUrl || '');
     setBirthOrder(member.birthOrder || 1);
     setRelationType(member.relationType || 'BIOLOGICAL');
@@ -100,7 +102,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setIsSubmittingEdit(true);
     try {
       await onSaveEdit?.({
-        name, gender, birthDate, career, academicLevel, biography, email, telegramChatId, avatarUrl,
+        name, gender, birthDate, career, academicLevel, biography, email, telegramChatId, branchChatId, avatarUrl,
         birthOrder, relationType, isDeceased, deathDate,
       });
       setIsEditing(false);
@@ -330,6 +332,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <label className="block text-sm font-medium text-wood-dark mb-1">Telegram Chat ID (tùy chọn)</label>
                 <input type="text" value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 123456789" />
                 <p className="text-xs text-gray-500 mt-1">Thay thế/bổ sung cho email để nhận nhắc lịch qua Telegram (cần Admin cấu hình Bot Token trong backend).</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-wood-dark mb-1">Chat ID nhóm Telegram của nhánh (tùy chọn)</label>
+                <input type="text" value={branchChatId} onChange={e => setBranchChatId(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: -1001234567890" />
+                <p className="text-xs text-gray-500 mt-1">Chỉ điền cho người đứng đầu nhánh có nhóm Telegram riêng — thông báo gửi "theo nhánh" sẽ vào nhóm này.</p>
               </div>
 
               <div className="md:col-span-2">
