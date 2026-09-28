@@ -21,6 +21,7 @@ interface ProfilePageProps {
   onDeleteEvent?: (id: string) => void;
   onSaveEdit?: (data: Partial<DetailedMember>) => Promise<void> | void;
   onDelete?: () => void;
+  onSetRootGeneration?: () => void;
   isAdmin?: boolean;
 }
 
@@ -37,8 +38,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onDeleteEvent,
   onSaveEdit,
   onDelete,
+  onSetRootGeneration,
   isAdmin
 }) => {
+  // Người đầu tiên của gia phả (không có cha/mẹ trên cây, ở đời nhỏ nhất) — admin được đặt lại là đời thứ mấy
+  const minGeneration = allMembers.length > 0 ? Math.min(...allMembers.map(m => m.generation || 1)) : 1;
+  const isRootMember = !member.fatherId && !member.motherId && member.generation === minGeneration;
   const memberEvents = (events || []).filter(e => e.memberId === member.id);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -171,7 +176,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               {member.name} {member.isDeceased && <span className="text-gray-300 text-xl font-normal ml-2">(Đã khuất)</span>}
             </h1>
             <p className="text-base text-orange-100/90 mb-1">
-              Đời thứ {member.generation} • {member.relationType === 'ADOPTED' ? 'Con nuôi' : member.relationType === 'STEPCHILD' ? 'Con riêng' : 'Con đẻ'} thứ {member.birthOrder}
+              Đời thứ {member.generation}
+              {isAdmin && isRootMember && onSetRootGeneration && (
+                <button
+                  type="button"
+                  onClick={onSetRootGeneration}
+                  className="ml-1.5 align-middle text-xs bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full"
+                  title="Đặt người đầu tiên là đời thứ mấy"
+                >
+                  ✎ Đổi
+                </button>
+              )}
+              {' '}• {member.relationType === 'ADOPTED' ? 'Con nuôi' : member.relationType === 'STEPCHILD' ? 'Con riêng' : 'Con đẻ'} thứ {member.birthOrder}
             </p>
             <p className="text-xs text-orange-100/70 italic">
               {member.birthDate || '?'} - {member.isDeceased ? (member.deathDate || 'Không rõ') : 'Nay'}

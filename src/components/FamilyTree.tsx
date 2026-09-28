@@ -332,7 +332,9 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
         isSelected ? 'ring-2 ring-bronze shadow-lg' : 'shadow-md hover:shadow-lg',
         isMatched ? 'ring-[3px] ring-yellow-400 !bg-yellow-50' : '',
         m.isDeceased ? 'bg-[#f6f3ee]' : 'bg-white',
-        dimmed ? 'opacity-30' : '',
+        // Chỉ làm mờ NỘI DUNG, nền thẻ vẫn đục — nếu làm mờ cả thẻ, đường nối cha→con chạy phía
+        // sau sẽ lộ xuyên qua thẻ thành 1 nét dọc.
+        dimmed ? '[&>*]:opacity-30 !border-l-gray-300 shadow-none' : '',
       ].join(' ');
     };
 
@@ -413,7 +415,7 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
       {/* Hình nền Long Phượng mờ, cố định (không chạy theo khi kéo cây) */}
       <div
         aria-hidden
-        className="absolute inset-0 pointer-events-none opacity-[0.10] bg-center bg-cover bg-no-repeat"
+        className="absolute inset-0 pointer-events-none opacity-[0.08] bg-center bg-cover bg-no-repeat"
         style={{ backgroundImage: "url('/bg-long-phuong.svg')" }}
       />
       <div aria-hidden className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_transparent_40%,_rgba(184,115,51,0.10))]" />
@@ -551,7 +553,7 @@ export const FamilyTree: React.FC<FamilyTreeProps> = ({
                 <ActionButton label="+ Con" onClick={() => onAddChild?.(selectedMember.id)}
                   icon={<><circle cx="9" cy="7" r="4"/><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><path d="M19 8v6M16 11h6"/></>} />
                 {isSelectedRoot && onSetRootGeneration && (
-                  <ActionButton label={`Đời ${selectedMember.generation}`} onClick={() => onSetRootGeneration(selectedMember.id)}
+                  <ActionButton label="Đặt số đời" onClick={() => onSetRootGeneration(selectedMember.id)}
                     icon={<><path d="M4 6h16M4 12h10M4 18h6"/><path d="M18 14l3 3-3 3"/></>} />
                 )}
                 {!selectedMember.isDeceased && (

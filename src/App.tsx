@@ -31,6 +31,7 @@ function MemberPageRoute(props: {
   onDeleteEvent: (id: string) => void;
   onSaveEdit: (id: string, data: Partial<DetailedMember>) => Promise<void>;
   onDelete: (id: string) => void;
+  onSetRootGeneration: (id: string) => void;
 }) {
   const { id } = useParams();
   const { myMemberId } = useIdentity();
@@ -60,6 +61,7 @@ function MemberPageRoute(props: {
       onDeleteEvent={props.onDeleteEvent}
       onSaveEdit={(data) => props.onSaveEdit(member.id, data)}
       onDelete={() => props.onDelete(member.id)}
+      onSetRootGeneration={() => props.onSetRootGeneration(member.id)}
     />
   );
 }
@@ -447,6 +449,7 @@ function App() {
                     onDeleteEvent={handleDeleteEvent}
                     onSaveEdit={handleEditMember}
                     onDelete={handleDeleteMember}
+                    onSetRootGeneration={openSetRootGeneration}
                   />
                 } />
 

@@ -119,7 +119,10 @@ export const calculateCoreKinship = (
   if (entryB) {
     const diff = entryB.path.length - 1;
     if (diff === 1) return personB.gender === 'male' ? 'Cha' : 'Mẹ';
-    if (diff === 2) return personB.gender === 'male' ? 'Ông' : 'Bà';
+    if (diff === 2) {
+      const side = entryB.isMaternal ? 'Ngoại' : 'Nội';
+      return personB.gender === 'male' ? `Ông ${side}` : `Bà ${side}`;
+    }
     if (diff === 3) return personB.gender === 'male' ? 'Cụ Ông' : 'Cụ Bà';
     return 'Tổ Tiên';
   }
@@ -190,7 +193,16 @@ export const calculateCoreKinship = (
       }
     }
     if (genDiff === 2) {
-      return personB.gender === 'male' ? (isMaternalA ? 'Ông Ngoại' : 'Ông Nội') : (isMaternalA ? 'Bà Ngoại' : 'Bà Nội'); // Bàng hệ thì vẫn gọi là Ông/Bà
+      // B là anh/chị/em của ông hoặc bà của A (childOfLcaA chính là ông/bà đó).
+      // Anh chị em của ông: Ông Bác / Ông Chú / Bà Cô (chị của ông: Bà Bác).
+      // Anh chị em của bà: Ông Bác / Ông Cậu / Bà Bác / Bà Dì.
+      const grandparentIsMale = childOfLcaA?.gender === 'male';
+      if (personB.gender === 'male') {
+        if (isBBranchSenior) return 'Ông Bác';
+        return grandparentIsMale ? 'Ông Chú' : 'Ông Cậu';
+      }
+      if (isBBranchSenior) return 'Bà Bác';
+      return grandparentIsMale ? 'Bà Cô' : 'Bà Dì';
     }
     if (genDiff >= 3) {
       return personB.gender === 'male' ? 'Cụ Ông' : 'Cụ Bà';
@@ -269,6 +281,9 @@ export const calculateKinship = (
     if (relation === 'Dì' && b.gender === 'male') return 'Dượng';
     if (relation === 'Bác trai' && b.gender === 'female') return 'Bác gái';
     if (relation === 'Bác gái' && b.gender === 'male') return 'Bác trai';
+    if (relation === 'Ông Chú') return 'Bà Thím';
+    if (relation === 'Ông Cậu') return 'Bà Mợ';
+    if (relation === 'Bà Cô' || relation === 'Bà Dì') return 'Ông Dượng';
     if (relation.includes('Ông')) return relation.replace('Ông', 'Bà');
     if (relation.includes('Bà')) return relation.replace('Bà', 'Ông');
     if (relation.includes('Cụ Ông')) return 'Cụ Bà';
