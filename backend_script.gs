@@ -1,20 +1,37 @@
 // ==========================================
 // GOOGLE APPS SCRIPT BACKEND CHO GIA PHẢ
 // ==========================================
+//
+// SAU KHI DÁN CODE NÀY VÀO APPS SCRIPT (lần đầu, hoặc sau khi cập nhật từ bản cũ):
+//   1. Chọn hàm "runOneTimeSetup" ở dropdown trên thanh công cụ > bấm Run (chỉ 1 lần).
+//      Hàm này tự tạo các Sheet còn thiếu (Users, Sessions, AuditLog, PendingEdits) và
+//      tự thêm các cột mới (isDeleted, telegramChatId...) vào Sheet Members/Events cũ.
+//      Nó cũng tự tạo 1 tài khoản đăng nhập mặc định: username "admin", mật khẩu chính
+//      là giá trị ADMIN_PASSWORD bên dưới — ĐĂNG NHẬP XONG NHỚ ĐỔI MẬT KHẨU trong app.
+//   2. Triển khai lại (New deployment) như hướng dẫn trong README.
+//   3. (Tùy chọn) Chạy "createDailyReminderTrigger" và "createWeeklyBackupTrigger" 1 lần
+//      để bật nhắc lịch qua email/Telegram và tự sao lưu Sheet hàng tuần.
 
-const ADMIN_PASSWORD = "admin"; // TODO: Thay đổi mật khẩu này
+const ADMIN_PASSWORD = "admin"; // Chỉ dùng để tạo tài khoản "admin" mặc định lúc runOneTimeSetup(). Đổi mật khẩu qua app sau khi đăng nhập lần đầu.
 
 function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
     const action = payload.action;
     const data = payload.data;
-    const password = payload.password;
-    
-    // Authentication Check (GET_MEMBERS và GET_EVENTS công khai để hiển thị Trang Chủ/Lịch sự kiện)
-    const PUBLIC_ACTIONS = ['GET_MEMBERS', 'GET_EVENTS'];
-    if (PUBLIC_ACTIONS.indexOf(action) === -1 && password !== ADMIN_PASSWORD) {
-      throw new Error('Unauthorized: Sai mật khẩu quản trị!');
+    // Giữ tên field cũ "password" để không phải sửa lại toàn bộ Frontend cũ — nhưng từ giờ
+    // giá trị này là SESSION TOKEN trả về từ hành động LOGIN, không còn là mật khẩu thô nữa.
+    const credential = payload.password;
+
+    // Các hành động công khai: không cần đăng nhập (hiển thị Trang Chủ/Lịch sự kiện, đăng
+    // nhập, đăng xuất, và cho khách gửi đề xuất chỉnh sửa hồ sơ để admin duyệt sau).
+    const PUBLIC_ACTIONS = ['GET_MEMBERS', 'GET_EVENTS', 'LOGIN', 'LOGOUT', 'SUBMIT_EDIT_REQUEST'];
+
+    let session = null;
+    if (PUBLIC_ACTIONS.indexOf(action) === -1) {
+      session = getValidSession_(credential);
+      if (!session) throw new Error('Unauthorized: Phiên đăng nhập hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại.');
+      if (session.role !== 'ADMIN') throw new Error('Unauthorized: Tài khoản của bạn không có quyền thực hiện thao tác này.');
     }
 
     let result = null;
@@ -53,13 +70,93 @@ function doPost(e) {
       case 'UPLOAD_AVATAR':
         result = uploadAvatar(data);
         break;
+
+      // --- Đăng nhập đa tài khoản (thay cho 1 mật khẩu chung) ---
+      case 'LOGIN':
+        result = login(data);
+        break;
+      case 'LOGOUT':
+        result = logout(credential);
+        break;
+      case 'CHANGE_PASSWORD':
+        result = changePassword(session, data);
+        break;
+      case 'GET_USERS':
+        result = getUsers();
+        break;
+      case 'ADD_USER':
+        result = addUser(data);
+        break;
+      case 'DELETE_USER':
+        result = deleteUser(data, session);
+        break;
+
+      // --- Thùng rác (xóa mềm, khôi phục được) ---
+      case 'GET_TRASH':
+        result = getTrash();
+        break;
+      case 'RESTORE_MEMBER':
+        result = restoreMember(data);
+        break;
+      case 'PURGE_MEMBER':
+        result = purgeMember(data);
+        break;
+      case 'SHIFT_GENERATIONS':
+        result = shiftGenerations(data);
+        break;
+      case 'RESTORE_EVENT':
+        result = restoreEvent(data);
+        break;
+      case 'PURGE_EVENT':
+        result = purgeEvent(data);
+        break;
+
+      // --- Nhật ký thao tác ---
+      case 'GET_AUDIT_LOG':
+        result = getAuditLog();
+        break;
+
+      // --- Đề xuất chỉnh sửa từ khách (chờ Admin duyệt) ---
+      case 'SUBMIT_EDIT_REQUEST':
+        result = submitEditRequest(data);
+        break;
+      case 'GET_PENDING_EDITS':
+        result = getPendingEdits();
+        break;
+      case 'APPROVE_PENDING_EDIT':
+        result = approvePendingEdit(data);
+        break;
+      case 'REJECT_PENDING_EDIT':
+        result = rejectPendingEdit(data);
+        break;
+
+      // --- Nhập hàng loạt (khôi phục từ bản sao lưu JSON, VD: khi chuyển sang Sheet mới) ---
+      case 'BULK_IMPORT_MEMBERS':
+        result = bulkImportMembers(data);
+        break;
+      case 'BULK_IMPORT_EVENTS':
+        result = bulkImportEvents(data);
+        break;
+
       default:
         throw new Error('Unknown action: ' + action);
     }
-    
+
+    // Ghi Nhật ký thao tác cho các hành động làm thay đổi dữ liệu (không chặn thao tác
+    // chính nếu ghi log lỗi — xem try/catch bên trong logAudit_).
+    const MUTATING_ACTIONS = [
+      'ADD_MEMBER', 'ADD_PARENT', 'ADD_SPOUSE', 'MARK_DECEASED', 'UPDATE_MEMBER', 'DELETE_MEMBER',
+      'RESTORE_MEMBER', 'PURGE_MEMBER', 'ADD_EVENT', 'DELETE_EVENT', 'RESTORE_EVENT', 'PURGE_EVENT',
+      'ADD_USER', 'DELETE_USER', 'CHANGE_PASSWORD', 'SUBMIT_EDIT_REQUEST', 'APPROVE_PENDING_EDIT', 'REJECT_PENDING_EDIT',
+      'BULK_IMPORT_MEMBERS', 'BULK_IMPORT_EVENTS', 'SHIFT_GENERATIONS'
+    ];
+    if (MUTATING_ACTIONS.indexOf(action) > -1) {
+      logAudit_(action, data, result, session);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
       .setMimeType(ContentService.MimeType.JSON);
-      
+
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -87,24 +184,67 @@ function getSheet(sheetName) {
     sheet = ss.insertSheet(sheetName);
     // Initialize headers if new
     if (sheetName === 'Members') {
-      sheet.appendRow(['id', 'name', 'gender', 'birthDate', 'isDeceased', 'deathDate', 'generation', 'birthOrder', 'fatherId', 'motherId', 'relationType', 'avatarUrl', 'academicLevel', 'career', 'biography', 'email']);
+      sheet.appendRow(['id', 'name', 'gender', 'birthDate', 'isDeceased', 'deathDate', 'generation', 'birthOrder', 'fatherId', 'motherId', 'relationType', 'avatarUrl', 'academicLevel', 'career', 'biography', 'email', 'isDeleted', 'telegramChatId']);
     } else if (sheetName === 'Spouses') {
       sheet.appendRow(['id', 'memberId', 'spouseId', 'isPrimary', 'order']);
     } else if (sheetName === 'Events') {
-      sheet.appendRow(['id', 'title', 'day', 'month', 'year', 'isLunar', 'memberId', 'note']);
+      sheet.appendRow(['id', 'title', 'day', 'month', 'year', 'isLunar', 'memberId', 'note', 'isDeleted']);
+    } else if (sheetName === 'Users') {
+      sheet.appendRow(['id', 'username', 'passwordHash', 'salt', 'role', 'displayName', 'createdAt']);
+    } else if (sheetName === 'Sessions') {
+      sheet.appendRow(['token', 'userId', 'username', 'role', 'createdAt', 'expiresAt']);
+    } else if (sheetName === 'AuditLog') {
+      sheet.appendRow(['id', 'timestamp', 'action', 'targetId', 'targetName', 'actor', 'details']);
+    } else if (sheetName === 'PendingEdits') {
+      sheet.appendRow(['id', 'memberId', 'memberName', 'proposedChanges', 'submitterName', 'submitterContact', 'status', 'createdAt', 'reviewedAt']);
     }
   }
   return sheet;
+}
+
+// Thêm 1 cột mới vào cuối Sheet nếu Sheet đó được tạo TRƯỚC KHI cột này tồn tại
+// (dùng cho việc di trú dữ liệu cũ, xem hàm runOneTimeSetup()).
+function ensureColumn_(sheetName, columnName) {
+  const sheet = getSheet(sheetName);
+  const lastCol = sheet.getLastColumn();
+  const headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  if (headers.indexOf(columnName) === -1) {
+    sheet.getRange(1, lastCol + 1).setValue(columnName);
+  }
+}
+
+// Chạy hàm này 1 LẦN (chọn trong dropdown Apps Script editor > Run) mỗi khi cập nhật
+// code từ bản cũ hơn — tự tạo các Sheet/cột còn thiếu, không đụng tới dữ liệu đã có.
+function runOneTimeSetup() {
+  ensureColumn_('Members', 'email');
+  ensureColumn_('Members', 'isDeleted');
+  ensureColumn_('Members', 'telegramChatId');
+  ensureColumn_('Events', 'isDeleted');
+  getSheet('Sessions');
+  getSheet('AuditLog');
+  getSheet('PendingEdits');
+  ensureUsersSeed_();
+  Logger.log('Hoàn tất khởi tạo/di trú Sheet. Tài khoản đăng nhập mặc định: username "admin", mật khẩu = giá trị hằng số ADMIN_PASSWORD trong code (đổi ngay sau khi đăng nhập lần đầu).');
+}
+
+// Giữ lại để tương thích ngược nếu ai đó vẫn chọn chạy hàm cũ này riêng lẻ.
+function ensureEmailColumn() {
+  ensureColumn_('Members', 'email');
+  Logger.log('Đã đảm bảo cột "email" tồn tại trong Sheet Members.');
+}
+
+function isTruthy_(val) {
+  return val === true || val === 'true' || val === 'TRUE';
 }
 
 function sheetToObjects(sheetName) {
   const sheet = getSheet(sheetName);
   const data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
-  
+
   const headers = data[0];
   const rows = data.slice(1);
-  
+
   return rows.map(row => {
     let obj = {};
     headers.forEach((header, i) => {
@@ -118,38 +258,76 @@ function sheetToObjects(sheetName) {
   });
 }
 
+// ==========================================
+// CACHE (giảm số lần đọc Sheet cho 2 API được gọi nhiều nhất)
+// ==========================================
+// Google Sheets đọc khá chậm khi có nhiều dòng; cache tạm 60 giây giúp Trang Chủ/Cây
+// Phả Hệ tải nhanh hơn hẳn khi nhiều người cùng xem. Mọi thao tác ghi dữ liệu đều tự
+// xóa cache để không bao giờ hiển thị dữ liệu cũ quá 60 giây.
+
+function getCache_() {
+  return CacheService.getScriptCache();
+}
+
+function invalidateCache_() {
+  try {
+    getCache_().removeAll(['members_v1', 'events_v1']);
+  } catch (err) {
+    Logger.log('Xóa cache lỗi (bỏ qua): ' + err);
+  }
+}
+
 function getMembers() {
+  const cache = getCache_();
+  const cached = cache.get('members_v1');
+  if (cached) return JSON.parse(cached);
+
   const members = sheetToObjects('Members');
   const spouses = sheetToObjects('Spouses');
-  
+
   // Format lại boolean/number do Google Sheets có thể đọc thành chuỗi
   members.forEach(m => {
-    m.isDeceased = m.isDeceased === true || m.isDeceased === 'true' || m.isDeceased === 'TRUE';
+    m.isDeceased = isTruthy_(m.isDeceased);
+    m.isDeleted = isTruthy_(m.isDeleted);
     m.generation = parseInt(m.generation) || 1;
     m.birthOrder = parseInt(m.birthOrder) || 1;
-    
+
     // Gắn spouses
     m.spouses = spouses
       .filter(s => s.memberId === m.id)
       .map(s => ({
         id: s.spouseId,
-        isPrimary: s.isPrimary === true || s.isPrimary === 'true' || s.isPrimary === 'TRUE',
+        isPrimary: isTruthy_(s.isPrimary),
         order: parseInt(s.order) || 1
       }));
-      
+
     // Gắn spouseOf (nếu người này là vợ/chồng được ghép vào)
     const spouseOf = spouses
       .filter(s => s.spouseId === m.id)
       .map(s => ({
         id: s.memberId,
-        isPrimary: s.isPrimary === true || s.isPrimary === 'true' || s.isPrimary === 'TRUE',
+        isPrimary: isTruthy_(s.isPrimary),
         order: parseInt(s.order) || 1
       }));
-      
+
     m.spouses = [...m.spouses, ...spouseOf];
   });
-  
-  return members;
+
+  // Ẩn các thành viên đã bị xóa (mềm) khỏi kết quả trả về cho Frontend, đồng thời dọn
+  // các tham chiếu vợ/chồng trỏ tới người đã bị ẩn để tránh hiển thị lỗi trên cây phả hệ.
+  const visibleIds = new Set(members.filter(m => !m.isDeleted).map(m => m.id));
+  members.forEach(m => {
+    m.spouses = m.spouses.filter(s => visibleIds.has(s.id));
+  });
+  const visible = members.filter(m => visibleIds.has(m.id));
+
+  try {
+    cache.put('members_v1', JSON.stringify(visible), 60);
+  } catch (err) {
+    Logger.log('Cache members bỏ qua (có thể do dữ liệu quá lớn >100KB): ' + err);
+  }
+
+  return visible;
 }
 
 function addMember(data) {
@@ -181,17 +359,18 @@ function addMember(data) {
   ]);
 
   newMember.spouses = [];
+  invalidateCache_();
   return newMember;
 }
 
 function addParent(data) {
   const membersSheet = getSheet('Members');
   const membersData = membersSheet.getDataRange().getValues();
-  
+
   // Find child
   let childRowIndex = -1;
   let childGeneration = 1;
-  
+
   for (let i = 1; i < membersData.length; i++) {
     if (membersData[i][0] === data.childId) {
       childRowIndex = i;
@@ -199,11 +378,11 @@ function addParent(data) {
       break;
     }
   }
-  
+
   if (childRowIndex === -1) throw new Error("Child not found");
-  
+
   let targetGeneration = childGeneration - 1;
-  
+
   if (targetGeneration < 1) {
     // Shift ALL members down by 1 generation
     for (let i = 1; i < membersData.length; i++) {
@@ -211,11 +390,11 @@ function addParent(data) {
     }
     // Write back to sheet
     membersSheet.getRange(1, 1, membersData.length, membersData[0].length).setValues(membersData);
-    
+
     // Now target is generation 1
     targetGeneration = 1;
   }
-  
+
   // Create parent
   const newParent = {
     id: generateUUID(),
@@ -234,22 +413,23 @@ function addParent(data) {
     career: '',
     biography: ''
   };
-  
+
   membersSheet.appendRow([
-    newParent.id, newParent.name, newParent.gender, newParent.birthDate, newParent.isDeceased, 
-    newParent.deathDate, newParent.generation, newParent.birthOrder, newParent.fatherId, 
-    newParent.motherId, newParent.relationType, newParent.avatarUrl, newParent.academicLevel, 
+    newParent.id, newParent.name, newParent.gender, newParent.birthDate, newParent.isDeceased,
+    newParent.deathDate, newParent.generation, newParent.birthOrder, newParent.fatherId,
+    newParent.motherId, newParent.relationType, newParent.avatarUrl, newParent.academicLevel,
     newParent.career, newParent.biography
   ]);
-  
+
   // Update child's fatherId or motherId
   if (newParent.gender === 'male') {
     membersSheet.getRange(childRowIndex + 1, 9).setValue(newParent.id); // index 8 is fatherId -> col 9
   } else {
     membersSheet.getRange(childRowIndex + 1, 10).setValue(newParent.id); // index 9 is motherId -> col 10
   }
-  
+
   newParent.spouses = [];
+  invalidateCache_();
   return newParent;
 }
 
@@ -257,13 +437,13 @@ function addSpouse(data) {
   // data có memberId, name, isPrimary, order, targetMember
   const targetId = data.memberId;
   const targetMember = data.targetMember; // Truyền từ FE lên cho nhanh
-  
+
   const membersSheet = getSheet('Members');
   const newSpouse = {
     id: generateUUID(),
     name: data.name || '',
     gender: targetMember.gender === 'male' ? 'female' : 'male',
-    birthDate: '',
+    birthDate: data.birthDate || '',
     isDeceased: false,
     deathDate: '',
     generation: targetMember.generation,
@@ -276,14 +456,14 @@ function addSpouse(data) {
     career: '',
     biography: ''
   };
-  
+
   membersSheet.appendRow([
-    newSpouse.id, newSpouse.name, newSpouse.gender, newSpouse.birthDate, newSpouse.isDeceased, 
-    newSpouse.deathDate, newSpouse.generation, newSpouse.birthOrder, newSpouse.fatherId, 
-    newSpouse.motherId, newSpouse.relationType, newSpouse.avatarUrl, newSpouse.academicLevel, 
+    newSpouse.id, newSpouse.name, newSpouse.gender, newSpouse.birthDate, newSpouse.isDeceased,
+    newSpouse.deathDate, newSpouse.generation, newSpouse.birthOrder, newSpouse.fatherId,
+    newSpouse.motherId, newSpouse.relationType, newSpouse.avatarUrl, newSpouse.academicLevel,
     newSpouse.career, newSpouse.biography
   ]);
-  
+
   const spousesSheet = getSheet('Spouses');
   spousesSheet.appendRow([
     generateUUID(),
@@ -292,14 +472,15 @@ function addSpouse(data) {
     data.isPrimary || false,
     data.order || 1
   ]);
-  
+
   // Trả về spouse mới kèm relationships để FE tự ghép
   newSpouse.spouses = [{
     id: targetId,
     isPrimary: data.isPrimary || false,
     order: data.order || 1
   }];
-  
+
+  invalidateCache_();
   return newSpouse;
 }
 
@@ -307,7 +488,7 @@ function markDeceased(data) {
   const sheet = getSheet('Members');
   const values = sheet.getDataRange().getValues();
   let updatedRow = -1;
-  
+
   for (let i = 1; i < values.length; i++) {
     if (values[i][0] === data.id) { // Cột 0 là ID
       sheet.getRange(i + 1, 5).setValue(true); // Cột 5 (index 4) là isDeceased
@@ -316,37 +497,36 @@ function markDeceased(data) {
       break;
     }
   }
-  
+
   if (updatedRow === -1) throw new Error("Member not found");
-  
+
+  invalidateCache_();
   return { id: data.id, isDeceased: true, deathDate: data.deathDate || '' };
 }
+
+// Cập nhật hồ sơ thành viên — đọc/ghi theo TÊN cột (header-driven) thay vì vị trí cố
+// định, để luôn hoạt động đúng dù Sheet cũ/mới có thứ tự cột lệch nhau do các lần thêm
+// cột mới (email, isDeleted, telegramChatId...) qua ensureColumn_()/runOneTimeSetup().
+const MEMBER_EDITABLE_FIELDS = [
+  'name', 'gender', 'birthDate', 'isDeceased', 'deathDate', 'generation', 'birthOrder',
+  'fatherId', 'motherId', 'relationType', 'avatarUrl', 'academicLevel', 'career',
+  'biography', 'email', 'telegramChatId', 'isDeleted'
+];
 
 function updateMember(data) {
   const sheet = getSheet('Members');
   const values = sheet.getDataRange().getValues();
-  const emailCol = values[0].indexOf('email'); // -1 nếu Sheet cũ chưa chạy ensureEmailColumn()
+  const headers = values[0];
   let updatedRow = -1;
 
   for (let i = 1; i < values.length; i++) {
     if (values[i][0] === data.id) {
-      // ['id', 'name', 'gender', 'birthDate', 'isDeceased', 'deathDate', 'generation', 'birthOrder', 'fatherId', 'motherId', 'relationType', 'avatarUrl', 'academicLevel', 'career', 'biography']
-      if (data.name !== undefined) values[i][1] = data.name;
-      if (data.gender !== undefined) values[i][2] = data.gender;
-      if (data.birthDate !== undefined) values[i][3] = data.birthDate;
-      if (data.isDeceased !== undefined) values[i][4] = data.isDeceased;
-      if (data.deathDate !== undefined) values[i][5] = data.deathDate;
-      if (data.generation !== undefined) values[i][6] = data.generation;
-      if (data.birthOrder !== undefined) values[i][7] = data.birthOrder;
-      if (data.fatherId !== undefined) values[i][8] = data.fatherId;
-      if (data.motherId !== undefined) values[i][9] = data.motherId;
-      if (data.relationType !== undefined) values[i][10] = data.relationType;
-      if (data.avatarUrl !== undefined) values[i][11] = data.avatarUrl;
-      if (data.academicLevel !== undefined) values[i][12] = data.academicLevel;
-      if (data.career !== undefined) values[i][13] = data.career;
-      if (data.biography !== undefined) values[i][14] = data.biography;
-      if (data.email !== undefined && emailCol > -1) values[i][emailCol] = data.email;
-
+      MEMBER_EDITABLE_FIELDS.forEach(function (field) {
+        if (data[field] !== undefined) {
+          const colIdx = headers.indexOf(field);
+          if (colIdx > -1) values[i][colIdx] = data[field];
+        }
+      });
       updatedRow = i;
       break;
     }
@@ -357,41 +537,93 @@ function updateMember(data) {
   // Ghi toàn bộ dữ liệu trở lại trong 1 lệnh API (tối ưu hóa tốc độ O(1))
   sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
 
+  invalidateCache_();
   return data;
 }
 
-// Chạy hàm này 1 LẦN (chọn hàm trong dropdown Apps Script editor > Run) nếu Sheet
-// Members của bạn được tạo TRƯỚC KHI tính năng email được thêm vào, để bật tính
-// năng lưu email liên hệ qua giao diện web (mục "Sửa hồ sơ").
-function ensureEmailColumn() {
+// --- Dời số đời của TOÀN BỘ thành viên đi `offset` đời (VD: gia phả bắt đầu ghi từ đời 5
+// thay vì đời 1 vì không còn thông tin các đời trước). Không cho phép đời nhỏ nhất < 1. ---
+function shiftGenerations(data) {
+  const offset = parseInt(data.offset, 10);
+  if (!offset) return { shifted: 0 };
+
   const sheet = getSheet('Members');
-  const lastCol = sheet.getLastColumn();
-  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  if (headers.indexOf('email') === -1) {
-    sheet.getRange(1, lastCol + 1).setValue('email');
-    Logger.log('Đã thêm cột "email" vào Sheet Members.');
-  } else {
-    Logger.log('Cột "email" đã tồn tại, không cần thêm.');
+  const values = sheet.getDataRange().getValues();
+  const genIdx = values[0].indexOf('generation');
+  if (genIdx === -1) throw new Error('Không tìm thấy cột generation');
+
+  for (let i = 1; i < values.length; i++) {
+    const current = parseInt(values[i][genIdx], 10) || 1;
+    if (current + offset < 1) throw new Error('Số đời sau khi dời phải từ 1 trở lên');
   }
+  for (let i = 1; i < values.length; i++) {
+    values[i][genIdx] = (parseInt(values[i][genIdx], 10) || 1) + offset;
+  }
+  sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+
+  invalidateCache_();
+  return { shifted: values.length - 1, offset: offset };
 }
 
+// --- Xóa mềm: đánh dấu isDeleted=true, dữ liệu vẫn còn nguyên, khôi phục được ---
 function deleteMember(data) {
   const targetId = data.id;
   if (!targetId) throw new Error("Missing member ID");
-  
+
+  const sheet = getSheet('Members');
+  const values = sheet.getDataRange().getValues();
+  const idxIsDeleted = values[0].indexOf('isDeleted');
+  if (idxIsDeleted === -1) throw new Error('Sheet Members thiếu cột "isDeleted". Hãy chạy hàm runOneTimeSetup() trong Apps Script editor rồi thử lại.');
+
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === targetId) {
+      sheet.getRange(i + 1, idxIsDeleted + 1).setValue(true);
+      invalidateCache_();
+      return { success: true, id: targetId, softDeleted: true };
+    }
+  }
+
+  throw new Error("Member not found");
+}
+
+function restoreMember(data) {
+  const targetId = data.id;
+  if (!targetId) throw new Error("Missing member ID");
+
+  const sheet = getSheet('Members');
+  const values = sheet.getDataRange().getValues();
+  const idxIsDeleted = values[0].indexOf('isDeleted');
+  if (idxIsDeleted === -1) throw new Error('Sheet Members thiếu cột "isDeleted".');
+
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === targetId) {
+      sheet.getRange(i + 1, idxIsDeleted + 1).setValue(false);
+      invalidateCache_();
+      return { success: true, id: targetId };
+    }
+  }
+
+  throw new Error("Member not found");
+}
+
+// Xóa vĩnh viễn (dùng trong màn "Thùng rác" của Admin) — không thể khôi phục.
+function purgeMember(data) {
+  const targetId = data.id;
+  if (!targetId) throw new Error("Missing member ID");
+
   // --- Tối ưu hóa: Đọc toàn bộ vào RAM, lọc và ghi lại 1 lần (O(1) API calls) ---
   const membersSheet = getSheet('Members');
   const membersData = membersSheet.getDataRange().getValues();
   const newMembersData = membersData.filter((row, i) => i === 0 || row[0] !== targetId);
-  
+
   if (newMembersData.length === membersData.length) {
     throw new Error("Member not found");
   }
-  
+
   // Xóa trắng vùng cũ và ghi đè vùng mới
   membersSheet.getDataRange().clearContent();
   membersSheet.getRange(1, 1, newMembersData.length, newMembersData[0].length).setValues(newMembersData);
-  
+
   // --- Tương tự cho Spouses ---
   const spousesSheet = getSheet('Spouses');
   const spousesData = spousesSheet.getDataRange().getValues();
@@ -402,7 +634,8 @@ function deleteMember(data) {
       spousesSheet.getRange(1, 1, newSpousesData.length, newSpousesData[0].length).setValues(newSpousesData);
     }
   }
-  
+
+  invalidateCache_();
   return { success: true, id: targetId };
 }
 
@@ -412,14 +645,28 @@ function deleteMember(data) {
 // memberId rỗng => sự kiện chung của cả dòng họ. memberId có giá trị => gắn với 1 thành viên cụ thể.
 
 function getEvents() {
+  const cache = getCache_();
+  const cached = cache.get('events_v1');
+  if (cached) return JSON.parse(cached);
+
   const events = sheetToObjects('Events');
   events.forEach(ev => {
     ev.day = parseInt(ev.day) || 0;
     ev.month = parseInt(ev.month) || 0;
     ev.year = ev.year ? parseInt(ev.year) : null;
-    ev.isLunar = ev.isLunar === true || ev.isLunar === 'true' || ev.isLunar === 'TRUE';
+    ev.isLunar = isTruthy_(ev.isLunar);
+    ev.isDeleted = isTruthy_(ev.isDeleted);
   });
-  return events;
+
+  const visible = events.filter(ev => !ev.isDeleted);
+
+  try {
+    cache.put('events_v1', JSON.stringify(visible), 60);
+  } catch (err) {
+    Logger.log('Cache events bỏ qua: ' + err);
+  }
+
+  return visible;
 }
 
 function addEvent(data) {
@@ -440,10 +687,51 @@ function addEvent(data) {
     newEvent.year, newEvent.isLunar, newEvent.memberId, newEvent.note
   ]);
 
+  invalidateCache_();
   return newEvent;
 }
 
 function deleteEvent(data) {
+  const targetId = data.id;
+  if (!targetId) throw new Error("Missing event ID");
+
+  const sheet = getSheet('Events');
+  const values = sheet.getDataRange().getValues();
+  const idxIsDeleted = values[0].indexOf('isDeleted');
+  if (idxIsDeleted === -1) throw new Error('Sheet Events thiếu cột "isDeleted". Hãy chạy hàm runOneTimeSetup() trong Apps Script editor rồi thử lại.');
+
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === targetId) {
+      sheet.getRange(i + 1, idxIsDeleted + 1).setValue(true);
+      invalidateCache_();
+      return { success: true, id: targetId, softDeleted: true };
+    }
+  }
+
+  throw new Error("Event not found");
+}
+
+function restoreEvent(data) {
+  const targetId = data.id;
+  if (!targetId) throw new Error("Missing event ID");
+
+  const sheet = getSheet('Events');
+  const values = sheet.getDataRange().getValues();
+  const idxIsDeleted = values[0].indexOf('isDeleted');
+  if (idxIsDeleted === -1) throw new Error('Sheet Events thiếu cột "isDeleted".');
+
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === targetId) {
+      sheet.getRange(i + 1, idxIsDeleted + 1).setValue(false);
+      invalidateCache_();
+      return { success: true, id: targetId };
+    }
+  }
+
+  throw new Error("Event not found");
+}
+
+function purgeEvent(data) {
   const targetId = data.id;
   if (!targetId) throw new Error("Missing event ID");
 
@@ -458,7 +746,404 @@ function deleteEvent(data) {
   sheet.getDataRange().clearContent();
   sheet.getRange(1, 1, newValues.length, newValues[0].length).setValues(newValues);
 
+  invalidateCache_();
   return { success: true, id: targetId };
+}
+
+function getTrash() {
+  const members = sheetToObjects('Members').filter(m => isTruthy_(m.isDeleted));
+  const events = sheetToObjects('Events').filter(ev => isTruthy_(ev.isDeleted));
+  return { members: members, events: events };
+}
+
+// ==========================================
+// NHẬP HÀNG LOẠT (khôi phục từ bản sao lưu JSON)
+// ==========================================
+// Dùng khi chuyển dữ liệu sang 1 Sheet mới (VD: mất/thất lạc Sheet cũ) — nhận đúng cấu
+// trúc dữ liệu mà GET_MEMBERS/GET_EVENTS trả về, GIỮ NGUYÊN id gốc để các liên kết
+// cha/mẹ/vợ-chồng (fatherId, motherId, spouses) không bị đứt gãy. Bỏ qua id nào đã tồn
+// tại sẵn để chạy lại nhiều lần cũng không bị nhân đôi dữ liệu.
+
+function bulkImportMembers(data) {
+  const members = data && data.members;
+  if (!Array.isArray(members)) throw new Error('Thiếu danh sách "members" cần nhập');
+
+  const sheet = getSheet('Members');
+  const spousesSheet = getSheet('Spouses');
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const existingIds = new Set(sheetToObjects('Members').map(m => m.id));
+
+  let imported = 0;
+  const addedPairs = new Set();
+  const spouseRows = [];
+
+  members.forEach(function (m) {
+    if (!m || !m.id || existingIds.has(m.id)) return;
+
+    const row = headers.map(function (h) {
+      if (h === 'isDeceased' || h === 'isDeleted') return !!m[h];
+      const val = m[h];
+      return (val === undefined || val === null) ? '' : val;
+    });
+    sheet.appendRow(row);
+    imported++;
+
+    (m.spouses || []).forEach(function (s) {
+      if (!s || !s.id) return;
+      const pairKey = [m.id, s.id].sort().join('|');
+      if (addedPairs.has(pairKey)) return;
+      addedPairs.add(pairKey);
+      spouseRows.push([generateUUID(), m.id, s.id, !!s.isPrimary, s.order || 1]);
+    });
+  });
+
+  spouseRows.forEach(function (row) { spousesSheet.appendRow(row); });
+
+  invalidateCache_();
+  return { success: true, imported: imported, spousesImported: spouseRows.length };
+}
+
+function bulkImportEvents(data) {
+  const events = data && data.events;
+  if (!Array.isArray(events)) throw new Error('Thiếu danh sách "events" cần nhập');
+
+  const sheet = getSheet('Events');
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const existingIds = new Set(sheetToObjects('Events').map(e => e.id));
+
+  let imported = 0;
+  events.forEach(function (ev) {
+    if (!ev || !ev.id || existingIds.has(ev.id)) return;
+    const row = headers.map(function (h) {
+      if (h === 'isLunar' || h === 'isDeleted') return !!ev[h];
+      const val = ev[h];
+      return (val === undefined || val === null) ? '' : val;
+    });
+    sheet.appendRow(row);
+    imported++;
+  });
+
+  invalidateCache_();
+  return { success: true, imported: imported };
+}
+
+// ==========================================
+// NHẬT KÝ THAO TÁC (Audit Log)
+// ==========================================
+// Ghi lại ai đã thêm/sửa/xóa gì và khi nào — admin xem lại trong app hoặc mở thẳng
+// Sheet "AuditLog". Lỗi khi ghi log KHÔNG được để làm hỏng thao tác chính của người dùng.
+
+function logAudit_(action, data, result, session) {
+  try {
+    const sheet = getSheet('AuditLog');
+    const actorName = session ? session.username : 'Khách (chưa đăng nhập)';
+    const targetId = (data && (data.id || data.childId || data.memberId)) || (result && result.id) || '';
+    const targetName = (data && data.name) || (result && result.name) || (result && result.memberName) || '';
+    let details = '';
+    try { details = JSON.stringify(data || {}).slice(0, 500); } catch (e) { details = ''; }
+    sheet.appendRow([generateUUID(), new Date(), action, targetId, targetName, actorName, details]);
+  } catch (err) {
+    Logger.log('Ghi Nhật ký thao tác lỗi (bỏ qua, không ảnh hưởng thao tác chính): ' + err);
+  }
+}
+
+function getAuditLog() {
+  const logs = sheetToObjects('AuditLog');
+  return logs.slice(-200).reverse();
+}
+
+// ==========================================
+// TÀI KHOẢN & ĐĂNG NHẬP (thay cho 1 mật khẩu Admin dùng chung)
+// ==========================================
+// Mỗi người quản trị (VD: từng chi/nhánh trong họ) có thể có 1 tài khoản riêng, thay vì
+// tất cả cùng dùng chung 1 mật khẩu như bản cũ. Mật khẩu được băm (SHA-256 + salt riêng
+// từng tài khoản) trước khi lưu vào Sheet "Users" — Sheet không bao giờ lưu mật khẩu gốc.
+// Đăng nhập thành công sẽ được cấp 1 "phiên" (session token) lưu trong Sheet "Sessions",
+// hết hạn sau 30 ngày; token này được Frontend lưu & gửi kèm mỗi request thay cho mật khẩu.
+
+function hashPassword_(password, salt) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + ':' + password);
+  return bytes.map(function (b) {
+    const v = (b < 0 ? b + 256 : b).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
+}
+
+// Tự tạo tài khoản "admin" mặc định (mật khẩu = ADMIN_PASSWORD) nếu Sheet Users
+// còn trống — đảm bảo không ai bị khóa ngoài sau khi nâng cấp từ bản cũ.
+function ensureUsersSeed_() {
+  const sheet = getSheet('Users');
+  if (sheet.getLastRow() > 1) return; // đã có tài khoản, không cần seed nữa
+
+  const salt = generateUUID();
+  sheet.appendRow([
+    generateUUID(), 'admin', hashPassword_(ADMIN_PASSWORD, salt), salt,
+    'ADMIN', 'Quản trị viên', new Date()
+  ]);
+  Logger.log('Đã tạo tài khoản đăng nhập mặc định: admin / ' + ADMIN_PASSWORD + ' — hãy đổi mật khẩu ngay sau khi đăng nhập.');
+}
+
+function getValidSession_(token) {
+  if (!token) return null;
+  const sheet = getSheet('Sessions');
+  const values = sheet.getDataRange().getValues();
+  const now = new Date();
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === token) {
+      const expiresAt = new Date(values[i][5]);
+      if (isNaN(expiresAt.getTime()) || expiresAt < now) return null;
+      return { token: token, userId: values[i][1], username: values[i][2], role: values[i][3] };
+    }
+  }
+  return null;
+}
+
+function login(data) {
+  const username = ((data && data.username) || '').trim();
+  const password = (data && data.password) || '';
+  if (!username || !password) throw new Error('Thiếu tài khoản hoặc mật khẩu');
+
+  ensureUsersSeed_();
+
+  // Chống dò mật khẩu: khóa tạm 15 phút sau 5 lần đăng nhập sai liên tiếp cho 1 username.
+  const cache = getCache_();
+  const lockKey = 'loginfail_' + username.toLowerCase();
+  const failCount = parseInt(cache.get(lockKey)) || 0;
+  if (failCount >= 5) {
+    throw new Error('Tài khoản tạm khóa do nhập sai mật khẩu quá nhiều lần. Vui lòng thử lại sau 15 phút.');
+  }
+
+  const usersSheet = getSheet('Users');
+  const values = usersSheet.getDataRange().getValues();
+  const headers = values[0];
+  const idxUsername = headers.indexOf('username');
+  const idxHash = headers.indexOf('passwordHash');
+  const idxSalt = headers.indexOf('salt');
+  const idxRole = headers.indexOf('role');
+  const idxId = headers.indexOf('id');
+  const idxDisplayName = headers.indexOf('displayName');
+
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][idxUsername]).toLowerCase() === username.toLowerCase()) {
+      const matches = hashPassword_(password, values[i][idxSalt]) === values[i][idxHash];
+      if (!matches) {
+        cache.put(lockKey, String(failCount + 1), 900); // khóa 15 phút
+        throw new Error('Sai tài khoản hoặc mật khẩu');
+      }
+
+      cache.remove(lockKey);
+
+      const token = generateUUID();
+      const now = new Date();
+      const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 ngày
+      const sessionsSheet = getSheet('Sessions');
+      sessionsSheet.appendRow([token, values[i][idxId], values[i][idxUsername], values[i][idxRole], now, expires]);
+
+      return {
+        token: token,
+        user: {
+          id: values[i][idxId],
+          username: values[i][idxUsername],
+          role: values[i][idxRole],
+          displayName: values[i][idxDisplayName] || values[i][idxUsername]
+        }
+      };
+    }
+  }
+
+  cache.put(lockKey, String(failCount + 1), 900);
+  throw new Error('Sai tài khoản hoặc mật khẩu');
+}
+
+function logout(token) {
+  if (!token) return { success: true };
+  const sheet = getSheet('Sessions');
+  const values = sheet.getDataRange().getValues();
+  const newValues = values.filter((row, i) => i === 0 || row[0] !== token);
+  if (newValues.length < values.length) {
+    sheet.getDataRange().clearContent();
+    sheet.getRange(1, 1, newValues.length, newValues[0].length).setValues(newValues);
+  }
+  return { success: true };
+}
+
+// Đổi mật khẩu của chính tài khoản đang đăng nhập.
+function changePassword(session, data) {
+  const currentPassword = data && data.currentPassword;
+  const newPassword = data && data.newPassword;
+  if (!newPassword || String(newPassword).length < 4) throw new Error('Mật khẩu mới phải có ít nhất 4 ký tự');
+
+  const usersSheet = getSheet('Users');
+  const values = usersSheet.getDataRange().getValues();
+  const headers = values[0];
+  const idxId = headers.indexOf('id');
+  const idxHash = headers.indexOf('passwordHash');
+  const idxSalt = headers.indexOf('salt');
+
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][idxId] === session.userId) {
+      if (currentPassword && hashPassword_(currentPassword, values[i][idxSalt]) !== values[i][idxHash]) {
+        throw new Error('Mật khẩu hiện tại không đúng');
+      }
+      const newSalt = generateUUID();
+      usersSheet.getRange(i + 1, idxSalt + 1).setValue(newSalt);
+      usersSheet.getRange(i + 1, idxHash + 1).setValue(hashPassword_(newPassword, newSalt));
+      return { success: true };
+    }
+  }
+
+  throw new Error('Không tìm thấy tài khoản');
+}
+
+function getUsers() {
+  return sheetToObjects('Users').map(u => ({
+    id: u.id, username: u.username, role: u.role, displayName: u.displayName, createdAt: u.createdAt
+  }));
+}
+
+// Admin tạo thêm tài khoản mới (VD: 1 tài khoản riêng cho mỗi chi/nhánh quản lý).
+function addUser(data) {
+  ensureUsersSeed_();
+  const username = ((data && data.username) || '').trim();
+  const password = (data && data.password) || '';
+  if (!username || !password) throw new Error('Thiếu tài khoản hoặc mật khẩu');
+  if (password.length < 4) throw new Error('Mật khẩu phải có ít nhất 4 ký tự');
+
+  const usersSheet = getSheet('Users');
+  const values = usersSheet.getDataRange().getValues();
+  const idxUsername = values[0].indexOf('username');
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][idxUsername]).toLowerCase() === username.toLowerCase()) {
+      throw new Error('Tài khoản này đã tồn tại');
+    }
+  }
+
+  const salt = generateUUID();
+  const newUser = {
+    id: generateUUID(),
+    username: username,
+    passwordHash: hashPassword_(password, salt),
+    salt: salt,
+    // Hiện tại mọi tài khoản đều có quyền ADMIN (toàn quyền chỉnh sửa) — hệ thống chưa
+    // phân biệt cấp quyền chi tiết hơn (VD: chỉ được sửa 1 nhánh riêng).
+    role: 'ADMIN',
+    displayName: data.displayName || username,
+    createdAt: new Date()
+  };
+
+  usersSheet.appendRow([newUser.id, newUser.username, newUser.passwordHash, newUser.salt, newUser.role, newUser.displayName, newUser.createdAt]);
+  return { id: newUser.id, username: newUser.username, role: newUser.role, displayName: newUser.displayName };
+}
+
+function deleteUser(data, session) {
+  const targetId = data && data.id;
+  if (!targetId) throw new Error('Thiếu ID tài khoản');
+  if (targetId === session.userId) throw new Error('Không thể tự xóa tài khoản đang đăng nhập');
+
+  const sheet = getSheet('Users');
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 2) throw new Error('Không thể xóa: hệ thống cần giữ lại ít nhất 1 tài khoản quản trị');
+
+  const newValues = values.filter((row, i) => i === 0 || row[0] !== targetId);
+  if (newValues.length === values.length) throw new Error('Không tìm thấy tài khoản');
+
+  sheet.getDataRange().clearContent();
+  sheet.getRange(1, 1, newValues.length, newValues[0].length).setValues(newValues);
+  return { success: true, id: targetId };
+}
+
+// ==========================================
+// ĐỀ XUẤT CHỈNH SỬA TỪ KHÁCH (chờ Admin duyệt)
+// ==========================================
+// Người xem thường (không có tài khoản Admin) có thể gửi đề xuất chỉnh sửa 1 hồ sơ —
+// KHÔNG áp dụng ngay, chỉ lưu vào Sheet "PendingEdits" chờ Admin vào duyệt trong app
+// (hoặc mở thẳng Sheet để xem thủ công).
+
+function submitEditRequest(data) {
+  if (!data || !data.memberId) throw new Error('Thiếu thông tin thành viên cần đề xuất sửa');
+  const members = sheetToObjects('Members');
+  const member = members.find(m => m.id === data.memberId);
+  if (!member) throw new Error('Không tìm thấy thành viên');
+  if (!data.changes || Object.keys(data.changes).length === 0) throw new Error('Chưa có nội dung đề xuất chỉnh sửa');
+
+  const sheet = getSheet('PendingEdits');
+  sheet.appendRow([
+    generateUUID(),
+    data.memberId,
+    member.name,
+    JSON.stringify(data.changes),
+    data.submitterName || 'Ẩn danh',
+    data.submitterContact || '',
+    'PENDING',
+    new Date(),
+    ''
+  ]);
+
+  return { success: true };
+}
+
+function getPendingEdits() {
+  return sheetToObjects('PendingEdits')
+    .filter(r => r.status === 'PENDING')
+    .map(r => {
+      let changes = {};
+      try { changes = JSON.parse(r.proposedChanges); } catch (e) { /* ignore */ }
+      return {
+        id: r.id, memberId: r.memberId, memberName: r.memberName, changes: changes,
+        submitterName: r.submitterName, submitterContact: r.submitterContact, createdAt: r.createdAt
+      };
+    });
+}
+
+function approvePendingEdit(data) {
+  const id = data && data.id;
+  if (!id) throw new Error('Thiếu ID đề xuất');
+
+  const sheet = getSheet('PendingEdits');
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
+  const idxId = headers.indexOf('id');
+  const idxMemberId = headers.indexOf('memberId');
+  const idxChanges = headers.indexOf('proposedChanges');
+  const idxStatus = headers.indexOf('status');
+  const idxReviewedAt = headers.indexOf('reviewedAt');
+
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][idxId] === id) {
+      let changes = {};
+      try { changes = JSON.parse(values[i][idxChanges]); } catch (e) { /* ignore */ }
+      changes.id = values[i][idxMemberId];
+      updateMember(changes); // áp dụng thay đổi thật vào Members
+
+      sheet.getRange(i + 1, idxStatus + 1).setValue('APPROVED');
+      sheet.getRange(i + 1, idxReviewedAt + 1).setValue(new Date());
+      return { success: true };
+    }
+  }
+
+  throw new Error('Không tìm thấy đề xuất');
+}
+
+function rejectPendingEdit(data) {
+  const id = data && data.id;
+  if (!id) throw new Error('Thiếu ID đề xuất');
+
+  const sheet = getSheet('PendingEdits');
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
+  const idxId = headers.indexOf('id');
+  const idxStatus = headers.indexOf('status');
+  const idxReviewedAt = headers.indexOf('reviewedAt');
+
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][idxId] === id) {
+      sheet.getRange(i + 1, idxStatus + 1).setValue('REJECTED');
+      sheet.getRange(i + 1, idxReviewedAt + 1).setValue(new Date());
+      return { success: true };
+    }
+  }
+
+  throw new Error('Không tìm thấy đề xuất');
 }
 
 // ==========================================
@@ -494,15 +1179,84 @@ function uploadAvatar(data) {
 }
 
 // ==========================================
-// NHẮC LỊCH GIỖ / SINH NHẬT QUA EMAIL
+// SAO LƯU TỰ ĐỘNG (Google Drive)
+// ==========================================
+// Vì toàn bộ dữ liệu chỉ nằm trong 1 Google Sheet, thao tác nhầm hoặc mất file gốc là rủi
+// ro lớn nhất. Hàm này tự tạo 1 bản sao (copy) của cả Spreadsheet vào thư mục riêng, chạy
+// định kỳ qua trigger, tự dọn bớt bản cũ để không phình dung lượng Drive.
+
+const BACKUP_FOLDER_NAME = 'GiaPha_Backups';
+const BACKUP_KEEP_COUNT = 8; // Giữ lại tối đa 8 bản backup gần nhất
+
+function getBackupFolder_() {
+  const folders = DriveApp.getFoldersByName(BACKUP_FOLDER_NAME);
+  if (folders.hasNext()) return folders.next();
+  return DriveApp.createFolder(BACKUP_FOLDER_NAME);
+}
+
+function backupSpreadsheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const file = DriveApp.getFileById(ss.getId());
+  const folder = getBackupFolder_();
+  const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
+  file.makeCopy('Backup_GiaPha_' + timestamp, folder);
+
+  // Dọn bớt bản cũ, chỉ giữ lại BACKUP_KEEP_COUNT bản gần nhất
+  const files = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) files.push(it.next());
+  files.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
+  for (let i = BACKUP_KEEP_COUNT; i < files.length; i++) {
+    files[i].setTrashed(true);
+  }
+
+  Logger.log('Đã sao lưu Spreadsheet vào thư mục Drive "' + BACKUP_FOLDER_NAME + '".');
+}
+
+// Chạy hàm này 1 LẦN từ Apps Script editor để tự động sao lưu mỗi tuần (3h sáng Thứ Hai).
+function createWeeklyBackupTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'backupSpreadsheet') ScriptApp.deleteTrigger(t);
+  });
+
+  ScriptApp.newTrigger('backupSpreadsheet')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.MONDAY)
+    .atHour(3)
+    .create();
+
+  Logger.log('Đã tạo trigger tự động sao lưu Spreadsheet vào ~3h sáng Thứ Hai hàng tuần.');
+}
+
+// ==========================================
+// NHẮC LỊCH GIỖ / SINH NHẬT QUA EMAIL & TELEGRAM
 // ==========================================
 // Cách kích hoạt: mở file này trong Apps Script editor, chọn hàm
 // "createDailyReminderTrigger" ở dropdown trên thanh công cụ rồi bấm Run
-// (chỉ cần chạy 1 LẦN). Từ đó hệ thống sẽ tự kiểm tra & gửi email mỗi ngày
-// lúc ~7h sáng, không cần ai mở web app. Người nhận là tất cả thành viên
-// có điền "email" trong hồ sơ (xem hàm ensureEmailColumn()).
+// (chỉ cần chạy 1 LẦN). Từ đó hệ thống sẽ tự kiểm tra & gửi nhắc mỗi ngày
+// lúc ~7h sáng, không cần ai mở web app. Người nhận email là tất cả thành viên
+// có điền "email" trong hồ sơ; người nhận Telegram là thành viên có điền
+// "Telegram Chat ID" (chỉ hoạt động nếu điền TELEGRAM_BOT_TOKEN bên dưới).
 
 const REMINDER_DAYS_AHEAD = 3; // Gửi nhắc trước bao nhiêu ngày
+
+// Điền Token Bot Telegram vào đây nếu muốn nhận nhắc lịch qua Telegram thay vì/thêm email
+// (tạo bot miễn phí qua @BotFather trên Telegram để lấy Token). Để trống "" = bỏ qua.
+const TELEGRAM_BOT_TOKEN = "";
+
+function sendTelegramMessage_(chatId, text) {
+  if (!TELEGRAM_BOT_TOKEN || !chatId) return;
+  try {
+    UrlFetchApp.fetch('https://api.telegram.org/bot' + TELEGRAM_BOT_TOKEN + '/sendMessage', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ chat_id: chatId, text: text }),
+      muteHttpExceptions: true
+    });
+  } catch (err) {
+    Logger.log('Gửi Telegram thất bại tới ' + chatId + ': ' + err);
+  }
+}
 
 // ==========================================
 // CHUYỂN ĐỔI ÂM LỊCH <-> DƯƠNG LỊCH
@@ -754,15 +1508,28 @@ function buildReminderEmailBody(upcomingEvents) {
     '</div>';
 }
 
+function buildReminderPlainText_(upcomingEvents) {
+  const lines = upcomingEvents.map(function (ev) {
+    const when = ev.daysUntil === 0 ? 'Hôm nay' : (ev.daysUntil === 1 ? 'Ngày mai' : 'Còn ' + ev.daysUntil + ' ngày');
+    const calendarLabel = ev.isLunar ? ' (ÂL)' : '';
+    return '• ' + ev.title + ' (' + ev.day + '/' + ev.month + calendarLabel + ') — ' + when;
+  });
+  return '🌳 Nhắc lịch Gia Phả\nCác sự kiện sắp diễn ra trong ' + REMINDER_DAYS_AHEAD + ' ngày tới:\n' + lines.join('\n');
+}
+
 function checkAndSendReminders() {
   const members = getMembers();
 
-  const recipients = members
+  const emailRecipients = members
     .map(function (m) { return m.email; })
     .filter(function (email) { return email && String(email).indexOf('@') > -1; });
 
-  if (recipients.length === 0) {
-    Logger.log('Không có email nào được cấu hình, bỏ qua gửi nhắc nhở.');
+  const telegramRecipients = members
+    .map(function (m) { return m.telegramChatId; })
+    .filter(function (chatId) { return chatId; });
+
+  if (emailRecipients.length === 0 && telegramRecipients.length === 0) {
+    Logger.log('Không có email/Telegram nào được cấu hình, bỏ qua gửi nhắc nhở.');
     return;
   }
 
@@ -810,16 +1577,24 @@ function checkAndSendReminders() {
 
   upcoming.sort(function (a, b) { return a.daysUntil - b.daysUntil; });
 
-  const subject = '[Gia Phả] Nhắc lịch: ' + upcoming.length + ' sự kiện sắp tới';
-  const body = buildReminderEmailBody(upcoming);
+  if (emailRecipients.length > 0) {
+    const subject = '[Gia Phả] Nhắc lịch: ' + upcoming.length + ' sự kiện sắp tới';
+    const body = buildReminderEmailBody(upcoming);
+    emailRecipients.forEach(function (email) {
+      try {
+        MailApp.sendEmail({ to: email, subject: subject, htmlBody: body });
+      } catch (err) {
+        Logger.log('Gửi email thất bại tới ' + email + ': ' + err);
+      }
+    });
+  }
 
-  recipients.forEach(function (email) {
-    try {
-      MailApp.sendEmail({ to: email, subject: subject, htmlBody: body });
-    } catch (err) {
-      Logger.log('Gửi email thất bại tới ' + email + ': ' + err);
-    }
-  });
+  if (telegramRecipients.length > 0 && TELEGRAM_BOT_TOKEN) {
+    const textBody = buildReminderPlainText_(upcoming);
+    telegramRecipients.forEach(function (chatId) {
+      sendTelegramMessage_(chatId, textBody);
+    });
+  }
 }
 
 // Chạy hàm này 1 LẦN từ Apps Script editor để đăng ký trigger tự động chạy

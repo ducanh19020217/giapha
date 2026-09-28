@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { login as loginApi } from '../services/api';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -22,17 +23,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
 
     try {
-      // Vì đã chuyển sang Google Apps Script, phần auth thực chất nằm ở việc 
-      // gửi đúng password. Ta cứ lưu password vào token, nếu sai thì lúc thêm/sửa 
-      // sẽ bị lỗi "Unauthorized".
       if (!password) {
         throw new Error('Vui lòng nhập mật khẩu');
       }
 
-      login({ id: 'admin-1', username, role: 'ADMIN' }, password);
+      // Gọi thẳng Backend để xác thực; thành công sẽ được cấp 1 session token (thay vì
+      // lưu thẳng mật khẩu như bản cũ) — token này mới là thứ được gửi kèm mọi request sau.
+      const { token, user } = await loginApi(username, password);
+      login(user, token);
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsLoading(false);
     }

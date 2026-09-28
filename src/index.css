@@ -11,3 +11,10 @@
     @apply font-serif;
   }
 }
+
+/* Đường nối trong cây gia phả (react-d3-tree) */
+path.rd3t-link.tree-link {
+  stroke: #b8733399;
+  stroke-width: 1.5px;
+  fill: none;
+}

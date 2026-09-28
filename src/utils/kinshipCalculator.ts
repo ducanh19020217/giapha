@@ -79,31 +79,30 @@ export const calculateCoreKinship = (
   const memberMap = new Map<string, DetailedMember>();
   allMembers.forEach(m => memberMap.set(m.id, m));
 
-  // Hàm đệ quy tìm tổ tiên
+  // Tìm TẤT CẢ tổ tiên theo cả nhánh cha lẫn nhánh mẹ (duyệt theo từng đời, gần trước xa sau).
+  // Không được chỉ đi theo cha: VD con của bác gái có cha là người lấy vào họ (không có tổ tiên
+  // trên cây), phải đi theo mẹ mới gặp được ông bà chung.
+  // isMaternal = bước đầu tiên đi qua mẹ (dùng để phân biệt Nội/Ngoại, Chú/Cậu...).
   const getAncestors = (member: DetailedMember): { id: string, path: string[], isMaternal: boolean }[] => {
-    let ancestors: { id: string, path: string[], isMaternal: boolean }[] = [];
-    let currentId = member.id;
-    let path = [currentId];
-    
-    // Đơn giản hóa: chỉ lấy nhánh nội (fatherId) để tìm tổ tiên chung cho demo này
-    // Trong thực tế cần cả fatherId và motherId. Ở đây ta ưu tiên father.
-    let curr = memberMap.get(currentId);
-    let isMaternal = false;
+    const ancestors: { id: string, path: string[], isMaternal: boolean }[] = [];
+    const visited = new Set<string>([member.id]);
+    let frontier: { member: DetailedMember, path: string[], isMaternal: boolean | null }[] = [{ member, path: [member.id], isMaternal: null }];
 
-    while (curr && (curr.fatherId || curr.motherId)) {
-      // Ưu tiên đi theo cha. Nếu không có cha thì đi theo mẹ và đánh dấu là nhánh ngoại
-      if (curr.fatherId) {
-        currentId = curr.fatherId;
-      } else if (curr.motherId) {
-        currentId = curr.motherId;
-        isMaternal = true;
-      } else {
-        break;
-      }
-      
-      path.push(currentId);
-      ancestors.push({ id: currentId, path: [...path], isMaternal });
-      curr = memberMap.get(currentId);
+    while (frontier.length > 0) {
+      const next: typeof frontier = [];
+      frontier.forEach(({ member: curr, path, isMaternal }) => {
+        const parents: Array<[string | undefined, boolean]> = [[curr.fatherId, false], [curr.motherId, true]];
+        parents.forEach(([parentId, viaMother]) => {
+          if (!parentId || visited.has(parentId)) return;
+          const parent = memberMap.get(parentId);
+          if (!parent) return;
+          visited.add(parentId);
+          const entry = { id: parentId, path: [...path, parentId], isMaternal: isMaternal ?? viaMother };
+          ancestors.push(entry);
+          next.push({ member: parent, path: entry.path, isMaternal: entry.isMaternal });
+        });
+      });
+      frontier = next;
     }
     return ancestors;
   };
@@ -116,18 +115,18 @@ export const calculateCoreKinship = (
   // thì tổ tiên đó của B cũng nằm trong đường tổ tiên của A (qua chính B) — vòng lặp
   // tìm tổ tiên chung bên dưới sẽ "tìm thấy" tổ tiên chung giả này và tính nhầm B
   // thành quan hệ bàng hệ (VD: Chú) thay vì trực hệ (Cha).
-  const idxB = ancestorsA.findIndex(a => a.id === personB.id);
-  if (idxB !== -1) {
-    const diff = idxB + 1;
+  const entryB = ancestorsA.find(a => a.id === personB.id);
+  if (entryB) {
+    const diff = entryB.path.length - 1;
     if (diff === 1) return personB.gender === 'male' ? 'Cha' : 'Mẹ';
     if (diff === 2) return personB.gender === 'male' ? 'Ông' : 'Bà';
     if (diff === 3) return personB.gender === 'male' ? 'Cụ Ông' : 'Cụ Bà';
     return 'Tổ Tiên';
   }
 
-  const idxA = ancestorsB.findIndex(b => b.id === personA.id);
-  if (idxA !== -1) {
-    const diff = idxA + 1;
+  const entryA = ancestorsB.find(b => b.id === personA.id);
+  if (entryA) {
+    const diff = entryA.path.length - 1;
     if (diff === 1) return personB.gender === 'male' ? 'Con trai' : 'Con gái';
     if (diff === 2) return personB.gender === 'male' ? 'Cháu trai' : 'Cháu gái';
     if (diff === 3) return personB.gender === 'male' ? 'Chắt trai' : 'Chắt gái';
@@ -222,9 +221,26 @@ export const calculateKinship = (
     return personB.gender === 'male' ? 'Chồng' : 'Vợ';
   }
 
-  // Find if personA or personB are spouses of a blood member
-  const partnerA = allMembers.find(m => m.spouses?.some(s => s.id === personA.id));
-  const partnerB = allMembers.find(m => m.spouses?.some(s => s.id === personB.id));
+  // Nếu A/B là người "lấy vào họ" thì trả về người máu mủ mà họ kết hôn cùng. Quan hệ vợ/chồng
+  // được lưu 2 chiều (cả 2 người đều có nhau trong `spouses`), nên KHÔNG được coi mọi người có
+  // vợ/chồng là người lấy vào họ — nếu không, chính người máu mủ (VD: bố, bản thân) sẽ bị tính
+  // qua vợ/chồng của họ và ra "Không có quan hệ họ hàng gần". Dùng cùng quy tắc với cây gia phả:
+  // người lấy vào họ là người có vợ/chồng đã có cha/mẹ trên cây, hoặc (khi cả 2 đều không có
+  // cha/mẹ, VD: cụ tổ) là người đứng sau trong danh sách.
+  const hasParents = (m: DetailedMember) => Boolean(m.fatherId || m.motherId);
+  const findBloodPartner = (person: DetailedMember): DetailedMember | undefined => {
+    if (hasParents(person)) return undefined;
+    const personIndex = allMembers.findIndex(m => m.id === person.id);
+    return allMembers.find((other, otherIndex) => {
+      if (other.id === person.id) return false;
+      const isSpouse = other.spouses?.some(s => s.id === person.id) || person.spouses?.some(s => s.id === other.id);
+      if (!isSpouse) return false;
+      return hasParents(other) || otherIndex < personIndex;
+    });
+  };
+
+  const partnerA = findBloodPartner(personA);
+  const partnerB = findBloodPartner(personB);
 
   const effA = partnerA || personA;
   const effB = partnerB || personB;
@@ -235,20 +251,22 @@ export const calculateKinship = (
   }
 
   // Calculate the core relationship between the blood members
-  let coreRelation = calculateCoreKinship(effA, effB, allMembers);
+  const coreRelation = calculateCoreKinship(effA, effB, allMembers);
 
   // If both are blood members, return exactly what was calculated
   if (!partnerA && !partnerB) return coreRelation;
 
   // Helper to adjust the term if B is a spouse
   const adjustForSpouseB = (relation: string, b: DetailedMember) => {
+    if (relation === 'Cha' || relation === 'Mẹ') return b.gender === 'male' ? 'Cha' : 'Mẹ';
     if (relation === 'Anh' && b.gender === 'female') return 'Chị dâu';
     if (relation === 'Anh' && b.gender === 'male') return 'Anh rể';
     if (relation.startsWith('Em ') && b.gender === 'female') return 'Em dâu';
     if (relation.startsWith('Em ') && b.gender === 'male') return 'Em rể';
     if (relation === 'Chú' && b.gender === 'female') return 'Thím';
     if (relation === 'Cậu' && b.gender === 'female') return 'Mợ';
-    if ((relation === 'Cô' || relation === 'Dì') && b.gender === 'male') return 'Dượng';
+    if (relation === 'Cô' && b.gender === 'male') return 'Chú'; // Chồng của cô (em gái bố) gọi là Chú
+    if (relation === 'Dì' && b.gender === 'male') return 'Dượng';
     if (relation === 'Bác trai' && b.gender === 'female') return 'Bác gái';
     if (relation === 'Bác gái' && b.gender === 'male') return 'Bác trai';
     if (relation.includes('Ông')) return relation.replace('Ông', 'Bà');
@@ -263,6 +281,12 @@ export const calculateKinship = (
     if (relation.startsWith('Chắt ') && b.gender === 'male') return 'Chắt rể';
     return `${b.gender === 'male' ? 'Người nam' : 'Người nữ'} (vợ/chồng của ${relation})`;
   };
+
+  // Bố/mẹ của vợ/chồng mình: gọi là Bố chồng/Mẹ chồng hoặc Bố vợ/Mẹ vợ
+  if (partnerA && (coreRelation === 'Cha' || coreRelation === 'Mẹ')) {
+    const side = effA.gender === 'male' ? 'chồng' : 'vợ';
+    return `${personB.gender === 'male' ? 'Bố' : 'Mẹ'} ${side}`;
+  }
 
   if (partnerA && partnerB) {
     if (effA.generation === effB.generation) {

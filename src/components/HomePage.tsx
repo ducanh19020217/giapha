@@ -5,6 +5,7 @@ import { useIdentity } from '../context/IdentityContext';
 import { useNavigate } from 'react-router-dom';
 import { IdentityModal } from './IdentityModal';
 import { KINSHIP_LOOKUP_ENABLED } from '../config/featureFlags';
+import { logoutRemote } from '../services/api';
 
 interface HomePageProps {
   members: DetailedMember[];
@@ -13,10 +14,18 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => {
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
   const { myMemberId } = useIdentity();
   const myMember = members.find(m => m.id === myMemberId);
   const [isIdentityModalOpen, setIdentityModalOpen] = useState(false);
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logoutRemote().finally(() => {
+      logout();
+      window.location.reload();
+    });
+  };
 
   // Calculate max generation
   const maxGeneration = members.length > 0 
@@ -47,7 +56,7 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => 
               <span className="text-burgundy font-bold">{user.username}</span>
             </span>
             <button
-              onClick={() => { logout(); window.location.reload(); }}
+              onClick={handleLogout}
               className="flex-shrink-0 text-xs sm:text-sm bg-wood hover:bg-wood-dark text-white px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full sm:rounded transition-colors shadow-sm font-medium"
             >
               Đăng xuất
@@ -144,7 +153,40 @@ export const HomePage: React.FC<HomePageProps> = ({ members, onLoginClick }) => 
               </div>
             </div>
           </button>
+
+          <button
+            onClick={() => navigate('/stats')}
+            className="flex-1 group relative overflow-hidden rounded-xl bg-white p-8 shadow-lg transition-all hover:shadow-xl hover:-translate-y-1 border border-wood/10"
+          >
+            <div className="absolute inset-0 bg-gradient-to-tr from-bronze/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="relative z-10 flex flex-col items-center text-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-bronze/10 flex items-center justify-center text-bronze group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-bronze mb-2 font-serif">Thống Kê Dòng Họ</h3>
+                <p className="text-sm text-wood-dark/80">Tổng quan số lượng thành viên, thế hệ, tuổi thọ trung bình...</p>
+              </div>
+            </div>
+          </button>
         </div>
+
+        {isAdmin && (
+          <div className="mt-6 w-full max-w-4xl px-4">
+            <button
+              onClick={() => navigate('/admin')}
+              className="w-full group flex items-center justify-center gap-2 rounded-xl bg-wood-dark/5 hover:bg-wood-dark/10 border border-dashed border-wood-dark/30 p-4 transition-colors text-wood-dark font-medium text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Trang Quản Trị (Thùng rác, Tài khoản, Nhật ký, Đề xuất chờ duyệt)
+            </button>
+          </div>
+        )}
       </main>
 
       <footer className="w-full py-6 text-center text-sm text-wood/60 relative z-10">

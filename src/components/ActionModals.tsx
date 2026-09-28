@@ -37,6 +37,22 @@ export const DateWithCalendarInput: React.FC<{
   );
 };
 
+// Ô nhập ngày sinh dùng khi thêm thành viên mới. Ngày sinh (có đủ ngày/tháng) của người còn
+// sống sẽ tự hiện thành "Sinh nhật" trong Lịch Sự Kiện chung của dòng họ.
+const BirthDateInput: React.FC<{ value: string; onChange: (value: string) => void }> = ({ value, onChange }) => (
+  <div>
+    <DateWithCalendarInput
+      label="Ngày sinh (tùy chọn)"
+      value={value}
+      onChange={onChange}
+      placeholder="VD: 15/08/1990"
+    />
+    <p className="text-xs text-gray-500 mt-1">
+      Nhập đủ ngày/tháng để sinh nhật tự hiện trong Lịch Sự Kiện của dòng họ.
+    </p>
+  </div>
+);
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -65,11 +81,12 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
 export const AddSpouseModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onSave: (name: string, isPrimary: boolean) => Promise<void> | void;
+  onSave: (name: string, isPrimary: boolean, birthDate: string) => Promise<void> | void;
   targetMember: DetailedMember;
 }> = ({ isOpen, onClose, onSave, targetMember }) => {
   const [name, setName] = useState('');
   const [isPrimary, setIsPrimary] = useState(true);
+  const [birthDate, setBirthDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,9 +94,10 @@ export const AddSpouseModal: React.FC<{
     if (!name.trim()) return;
     setIsSubmitting(true);
     try {
-      await onSave(name, isPrimary);
+      await onSave(name, isPrimary, birthDate);
       setName('');
       setIsPrimary(true);
+      setBirthDate('');
     } finally {
       setIsSubmitting(false);
     }
@@ -92,6 +110,7 @@ export const AddSpouseModal: React.FC<{
           <label className="block text-sm font-medium text-wood-dark mb-1">Họ tên Phối ngẫu</label>
           <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full border rounded p-2 focus:border-bronze focus:ring-1 focus:ring-bronze outline-none" placeholder="Ví dụ: Trần Thị B" />
         </div>
+        <BirthDateInput value={birthDate} onChange={setBirthDate} />
         <div className="flex items-center gap-2">
           <input type="checkbox" id="isPrimary" checked={isPrimary} onChange={e => setIsPrimary(e.target.checked)} className="rounded text-burgundy focus:ring-burgundy" />
           <label htmlFor="isPrimary" className="text-sm text-gray-700">Là Chính thất (Vợ/Chồng cả)</label>
@@ -108,7 +127,7 @@ export const AddSpouseModal: React.FC<{
 export const AddChildModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onSave: (name: string, gender: 'male'|'female', otherParentId: string | null, relationType: 'BIOLOGICAL' | 'ADOPTED' | 'STEPCHILD', birthOrder: number) => Promise<void> | void;
+  onSave: (name: string, gender: 'male'|'female', otherParentId: string | null, relationType: 'BIOLOGICAL' | 'ADOPTED' | 'STEPCHILD', birthOrder: number, birthDate: string) => Promise<void> | void;
   targetMember: DetailedMember;
   allMembers: DetailedMember[];
 }> = ({ isOpen, onClose, onSave, targetMember, allMembers }) => {
@@ -117,6 +136,7 @@ export const AddChildModal: React.FC<{
   const [otherParentId, setOtherParentId] = useState<string>('');
   const [relationType, setRelationType] = useState<'BIOLOGICAL' | 'ADOPTED' | 'STEPCHILD'>('BIOLOGICAL');
   const [birthOrder, setBirthOrder] = useState<number>(1);
+  const [birthDate, setBirthDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const spousesData = targetMember.spouses?.map(s => allMembers.find(m => m.id === s.id)).filter(Boolean) as DetailedMember[];
@@ -126,7 +146,8 @@ export const AddChildModal: React.FC<{
     if (!name.trim()) return;
     setIsSubmitting(true);
     try {
-      await onSave(name, gender, otherParentId || null, relationType, birthOrder);
+      await onSave(name, gender, otherParentId || null, relationType, birthOrder, birthDate);
+      setBirthDate('');
       setName('');
       setGender('male');
       setOtherParentId('');
@@ -151,6 +172,7 @@ export const AddChildModal: React.FC<{
             <option value="female">Con gái</option>
           </select>
         </div>
+        <BirthDateInput value={birthDate} onChange={setBirthDate} />
         <div>
           <label className="block text-sm font-medium text-wood-dark mb-1">Thứ tự sinh</label>
           <input type="number" min="1" value={birthOrder} onChange={e => setBirthOrder(parseInt(e.target.value) || 1)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 1 (Trưởng), 2 (Thứ)" />
@@ -226,14 +248,69 @@ export const MarkDeceasedModal: React.FC<{
   );
 };
 
+// --- MODAL ĐẶT SỐ ĐỜI CHO NGƯỜI ĐẦU TIÊN (gốc cây) ---
+// Dùng khi gia phả không ghi được từ đời 1: đặt người gốc là đời thứ N, toàn bộ con cháu dời theo.
+export const SetRootGenerationModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (generation: number) => Promise<void> | void;
+  targetMember: DetailedMember;
+  memberCount: number;
+}> = ({ isOpen, onClose, onSave, targetMember, memberCount }) => {
+  const [generation, setGeneration] = useState(targetMember.generation || 1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setGeneration(targetMember.generation || 1);
+  }, [targetMember.generation, isOpen]);
+
+  const offset = generation - (targetMember.generation || 1);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!offset) { onClose(); return; }
+    setIsSubmitting(true);
+    try {
+      await onSave(generation);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Đặt số đời: ${targetMember.name}`}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-sm text-gray-600">
+          Không còn thông tin các đời trước? Đặt <strong>{targetMember.name}</strong> là đời thứ mấy trong dòng họ.
+          Toàn bộ {memberCount} thành viên sẽ dời theo, giữ nguyên khoảng cách giữa các đời.
+        </p>
+        <div>
+          <label className="block text-sm font-medium text-wood-dark mb-1">Là đời thứ</label>
+          <input type="number" min="1" value={generation} onChange={e => setGeneration(Math.max(1, parseInt(e.target.value) || 1))} className="w-full border rounded p-2 focus:border-bronze outline-none" />
+        </div>
+        {offset !== 0 && (
+          <p className="text-sm bg-orange-50 p-2 rounded">
+            Đời {targetMember.generation} → Đời {generation}: mọi thành viên {offset > 0 ? 'cộng thêm' : 'bớt đi'} {Math.abs(offset)} đời.
+          </p>
+        )}
+        <button type="submit" disabled={isSubmitting} className="w-full bg-burgundy hover:bg-burgundy-dark text-white py-2 rounded font-medium transition-colors disabled:opacity-50">
+          {isSubmitting ? 'Đang cập nhật...' : 'Lưu'}
+        </button>
+      </form>
+    </Modal>
+  );
+};
+
 // --- MODAL THÊM CỤ TỔ ---
 export const AddRootModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onSave: (name: string, gender: 'male'|'female') => Promise<void> | void;
+  onSave: (name: string, gender: 'male'|'female', birthDate: string, generation: number) => Promise<void> | void;
 }> = ({ isOpen, onClose, onSave }) => {
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'male'|'female'>('male');
+  const [birthDate, setBirthDate] = useState('');
+  const [generation, setGeneration] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -241,9 +318,11 @@ export const AddRootModal: React.FC<{
     if (!name.trim()) return;
     setIsSubmitting(true);
     try {
-      await onSave(name, gender);
+      await onSave(name, gender, birthDate, generation);
       setName('');
       setGender('male');
+      setBirthDate('');
+      setGeneration(1);
     } finally {
       setIsSubmitting(false);
     }
@@ -263,6 +342,14 @@ export const AddRootModal: React.FC<{
             <option value="female">Nữ</option>
           </select>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-wood-dark mb-1">Là đời thứ</label>
+          <input type="number" min="1" value={generation} onChange={e => setGeneration(Math.max(1, parseInt(e.target.value) || 1))} className="w-full border rounded p-2 focus:border-bronze outline-none" />
+          <p className="text-xs text-gray-500 mt-1">
+            Không còn thông tin các đời trước? Chọn đúng đời của người này (VD: 5); con cháu sẽ tự tính tiếp là đời 6, 7...
+          </p>
+        </div>
+        <BirthDateInput value={birthDate} onChange={setBirthDate} />
         <button type="submit" disabled={isSubmitting} className="w-full bg-burgundy hover:bg-burgundy-dark text-white py-2 rounded font-medium transition-colors disabled:opacity-50">
           {isSubmitting ? 'Đang xử lý...' : 'Khởi tạo Gia phả'}
         </button>
@@ -303,7 +390,7 @@ export const AddParentModal: React.FC<{
     <Modal isOpen={isOpen} onClose={onClose} title={`Thêm Phụ/Mẫu cho ${targetMember.name}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-gray-600 bg-orange-50 p-2 rounded">
-          <strong>Lưu ý:</strong> Nếu thêm Phụ/Mẫu cho Cụ Tổ (Đời 1), toàn bộ các thế hệ hiện tại sẽ tự động lùi xuống một đời để nhường vị trí Đời 1 cho Tổ Tiên mới.
+          <strong>Lưu ý:</strong> Nếu người này đang là Đời 1, toàn bộ các thế hệ hiện tại sẽ tự động lùi xuống một đời để nhường vị trí Đời 1 cho Tổ Tiên mới.
         </p>
         <div>
           <label className="block text-sm font-medium text-wood-dark mb-1">Họ tên Tổ Tiên</label>

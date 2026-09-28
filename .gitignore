@@ -17,6 +17,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Bản sao lưu dữ liệu gia phả (chứa thông tin cá nhân thật, không đưa lên git)
+giapha_backup_*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

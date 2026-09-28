@@ -8,6 +8,8 @@ export interface DetailedMember {
   burialPlace?: string;
   avatarUrl?: string;       // Ảnh chân dung
   email?: string;           // Email liên hệ, dùng để gửi nhắc lịch giỗ/sinh nhật
+  telegramChatId?: string;  // Chat ID Telegram, dùng để gửi nhắc lịch qua Telegram (thay thế/thêm cho email)
+  isDeleted?: boolean;      // true nếu đã bị xóa (mềm) — chỉ xuất hiện trong dữ liệu "Thùng rác"
   
   // Thông tin tiểu sử chuyên sâu
   academicLevel?: string;   // Học hàm, học vị (Tiến sĩ, Thạc sĩ...)

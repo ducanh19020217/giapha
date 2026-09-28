@@ -4,6 +4,7 @@ export interface User {
   id: string;
   username: string;
   role: 'ADMIN' | 'VIEWER';
+  displayName?: string;
 }
 
 interface AuthContextType {
@@ -28,7 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(storedToken);
       try {
         setUser(JSON.parse(storedUser));
-      } catch (e) {
+      } catch {
         console.error('Failed to parse user from local storage');
       }
     }

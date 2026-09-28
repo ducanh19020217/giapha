@@ -7,4 +7,5 @@ export interface FamilyEvent {
   isLunar?: boolean; // true nếu day/month là ngày Âm lịch (VD: Giỗ Tổ 10/3 Âm lịch)
   memberId?: string;
   note?: string;
+  isDeleted?: boolean; // true nếu đã bị xóa (mềm) — chỉ xuất hiện trong dữ liệu "Thùng rác"
 }

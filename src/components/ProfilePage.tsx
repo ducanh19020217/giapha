@@ -6,6 +6,7 @@ import { DateWithCalendarInput } from './ActionModals';
 import { resizeImageToBase64 } from '../utils/imageUpload';
 import { uploadAvatar } from '../services/api';
 import { getAncestorTree, calculateKinship } from '../utils/kinshipCalculator';
+import { SuggestEditModal } from './SuggestEditModal';
 
 interface ProfilePageProps {
   member: DetailedMember;
@@ -42,6 +43,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false);
   const children = allMembers.filter(
     (m) => m.fatherId === member.id || m.motherId === member.id
   );
@@ -61,6 +63,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [academicLevel, setAcademicLevel] = useState(member.academicLevel || '');
   const [biography, setBiography] = useState(member.biography || '');
   const [email, setEmail] = useState(member.email || '');
+  const [telegramChatId, setTelegramChatId] = useState(member.telegramChatId || '');
   const [avatarUrl, setAvatarUrl] = useState(member.avatarUrl || '');
   const [birthOrder, setBirthOrder] = useState(member.birthOrder || 1);
   const [relationType, setRelationType] = useState(member.relationType || 'BIOLOGICAL');
@@ -79,6 +82,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setAcademicLevel(member.academicLevel || '');
     setBiography(member.biography || '');
     setEmail(member.email || '');
+    setTelegramChatId(member.telegramChatId || '');
     setAvatarUrl(member.avatarUrl || '');
     setBirthOrder(member.birthOrder || 1);
     setRelationType(member.relationType || 'BIOLOGICAL');
@@ -91,7 +95,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setIsSubmittingEdit(true);
     try {
       await onSaveEdit?.({
-        name, gender, birthDate, career, academicLevel, biography, email, avatarUrl,
+        name, gender, birthDate, career, academicLevel, biography, email, telegramChatId, avatarUrl,
         birthOrder, relationType, isDeceased, deathDate,
       });
       setIsEditing(false);
@@ -120,15 +124,35 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto pb-16">
-      <Link
-        to="/tree"
-        className="inline-flex items-center gap-2 text-sm text-wood-dark hover:text-burgundy font-medium mb-4 transition-colors"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        Quay lại Cây Phả Hệ
-      </Link>
+      <div className="flex items-center justify-between gap-2 mb-4 print:hidden">
+        <Link
+          to="/tree"
+          className="inline-flex items-center gap-2 text-sm text-wood-dark hover:text-burgundy font-medium transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Quay lại Cây Phả Hệ
+        </Link>
+        <div className="flex items-center gap-2">
+          {!isAdmin && (
+            <button
+              onClick={() => setIsSuggestOpen(true)}
+              className="text-xs border border-wood-dark/30 text-wood-dark hover:bg-wood-dark hover:text-white px-3 py-1.5 rounded-full transition-colors font-medium"
+            >
+              Đề xuất chỉnh sửa
+            </button>
+          )}
+          <button
+            onClick={() => window.print()}
+            className="text-xs border border-wood-dark/30 text-wood-dark hover:bg-wood-dark hover:text-white px-3 py-1.5 rounded-full transition-colors font-medium"
+          >
+            In / Xuất PDF
+          </button>
+        </div>
+      </div>
+
+      <SuggestEditModal isOpen={isSuggestOpen} onClose={() => setIsSuggestOpen(false)} member={member} />
 
       <div className="bg-white rounded-2xl shadow-xl border border-wood-light/20 overflow-hidden">
         {/* Header Profile */}
@@ -167,7 +191,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         {/* Toolbar / Action Buttons */}
         {isAdmin && !isEditing && (
-          <div className="bg-[#5c3a21] border-b border-wood-dark px-4 py-3 flex gap-2 flex-wrap justify-center shadow-inner z-10">
+          <div className="bg-[#5c3a21] border-b border-wood-dark px-4 py-3 flex gap-2 flex-wrap justify-center shadow-inner z-10 print:hidden">
             <button onClick={() => setIsEditing(true)} className="bg-white/10 hover:bg-white hover:text-wood-dark text-white px-3 py-1.5 rounded text-[10px] font-serif uppercase tracking-wider transition-colors border border-white/20">
               Sửa hồ sơ
             </button>
@@ -281,10 +305,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <input type="text" value={career} onChange={e => setCareer(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: Kỹ sư phần mềm" />
               </div>
 
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-sm font-medium text-wood-dark mb-1">Email liên hệ (tùy chọn)</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: nguoidung@gmail.com" />
                 <p className="text-xs text-gray-500 mt-1">Dùng để gửi email nhắc lịch giỗ/sinh nhật tự động.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-wood-dark mb-1">Telegram Chat ID (tùy chọn)</label>
+                <input type="text" value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} className="w-full border rounded p-2 focus:border-bronze outline-none" placeholder="VD: 123456789" />
+                <p className="text-xs text-gray-500 mt-1">Thay thế/bổ sung cho email để nhận nhắc lịch qua Telegram (cần Admin cấu hình Bot Token trong backend).</p>
               </div>
 
               <div className="md:col-span-2">

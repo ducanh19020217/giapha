@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { HomePage } from './components/HomePage'
-import { AddSpouseModal, AddChildModal, MarkDeceasedModal, AddRootModal, AddParentModal, AddEventModal } from './components/ActionModals'
+import { AddSpouseModal, AddChildModal, MarkDeceasedModal, AddRootModal, AddParentModal, AddEventModal, SetRootGenerationModal } from './components/ActionModals'
 import { FamilyTree } from './components/FamilyTree'
 import { ProfilePage } from './components/ProfilePage'
 import { KinshipCalculator } from './components/KinshipCalculator'
@@ -14,7 +14,9 @@ import { KINSHIP_LOOKUP_ENABLED } from './config/featureFlags'
 import { DetailedMember } from './types/member'
 import { FamilyEvent } from './types/event'
 import * as api from './services/api'
-import { getMembers, addMember, addSpouse, markDeceased, updateMember, deleteMember } from './services/api'
+import { getMembers, addMember, addSpouse, markDeceased, updateMember, deleteMember, logoutRemote } from './services/api'
+import { AdminPanel } from './components/AdminPanel'
+import { StatsPage } from './components/StatsPage'
 
 // Bọc ProfilePage để đọc :id từ URL và tra thành viên tương ứng (route /member/:id)
 function MemberPageRoute(props: {
@@ -82,6 +84,7 @@ function App() {
   const [isSpouseModalOpen, setSpouseModalOpen] = useState(false);
   const [isChildModalOpen, setChildModalOpen] = useState(false);
   const [isDeceasedModalOpen, setDeceasedModalOpen] = useState(false);
+  const [isGenerationModalOpen, setGenerationModalOpen] = useState(false);
   const [isRootModalOpen, setRootModalOpen] = useState(false);
   const [isParentModalOpen, setParentModalOpen] = useState(false);
   const [isEventModalOpen, setEventModalOpen] = useState(false);
@@ -117,12 +120,13 @@ function App() {
   const myMember = members.find(m => m.id === myMemberId);
 
   // --- HANDLERS ---
-  const handleAddRoot = async (name: string, gender: 'male'|'female') => {
+  const handleAddRoot = async (name: string, gender: 'male'|'female', birthDate: string, generation: number) => {
     try {
       await addMember({
         name,
         gender,
-        generation: 1,
+        birthDate: birthDate || undefined,
+        generation,
         birthOrder: 1,
       });
       await fetchMembers();
@@ -171,13 +175,30 @@ function App() {
   const openAddChild = (id: string) => { setSelectedMemberId(id); setChildModalOpen(true); };
   const openAddParent = (id: string) => { setSelectedMemberId(id); setParentModalOpen(true); };
   const openMarkDeceased = (id: string) => { setSelectedMemberId(id); setDeceasedModalOpen(true); };
+  const openSetRootGeneration = (id: string) => { setSelectedMemberId(id); setGenerationModalOpen(true); };
+
+  const handleSetRootGeneration = async (generation: number) => {
+    if (!selectedMember) return;
+    try {
+      await api.shiftGenerations(generation - selectedMember.generation);
+      await fetchMembers();
+      setGenerationModalOpen(false);
+    } catch (error) {
+      console.error('Failed to shift generations:', error);
+      alert('Lỗi khi đặt số đời: ' + error);
+    }
+  };
   const openAddEvent = (id: string) => { setEventModalDefaultMemberId(id); setEventModalOpen(true); };
 
-  const handleAddSpouse = async (name: string, isPrimary: boolean) => {
+  const handleAddSpouse = async (name: string, isPrimary: boolean, birthDate: string) => {
     if (!selectedMember) return;
     try {
       const order = (selectedMember.spouses?.length || 0) + 1;
-      await addSpouse(selectedMember.id, { name, isPrimary, order }, selectedMember);
+      const newSpouse = await addSpouse(selectedMember.id, { name, isPrimary, order, birthDate: birthDate || undefined }, selectedMember);
+      // Apps Script bản cũ (chưa triển khai lại) bỏ qua birthDate khi thêm vợ/chồng -> lưu bổ sung
+      if (birthDate && newSpouse?.id && !newSpouse.birthDate) {
+        await updateMember(newSpouse.id, { birthDate });
+      }
       await fetchMembers();
       setSpouseModalOpen(false);
     } catch (error) {
@@ -185,7 +206,7 @@ function App() {
     }
   };
 
-  const handleAddChild = async (name: string, gender: 'male'|'female', otherParentId: string | null, relationType: 'BIOLOGICAL' | 'ADOPTED' | 'STEPCHILD', birthOrder: number) => {
+  const handleAddChild = async (name: string, gender: 'male'|'female', otherParentId: string | null, relationType: 'BIOLOGICAL' | 'ADOPTED' | 'STEPCHILD', birthOrder: number, birthDate: string) => {
     if (!selectedMember) return;
     try {
       // Handle stepchild logic
@@ -212,6 +233,7 @@ function App() {
         gender,
         generation: selectedMember.generation + 1,
         birthOrder,
+        birthDate: birthDate || undefined,
         fatherId,
         motherId,
         relationType
@@ -257,6 +279,13 @@ function App() {
     }
   };
 
+  const handleLogout = () => {
+    logoutRemote().finally(() => {
+      logout();
+      window.location.reload();
+    });
+  };
+
   const handleDeleteEvent = async (id: string) => {
     if (!window.confirm('Bạn có chắc muốn xóa sự kiện này?')) return;
     try {
@@ -281,7 +310,7 @@ function App() {
         <Route path="/*" element={
           <div className={`min-h-screen bg-[#F4F0EB] font-sans text-wood-dark ${isTreeView ? 'p-0 h-dvh overflow-hidden' : 'p-4 md:p-8'}`}>
             {!isTreeView && (
-              <header className="w-full max-w-[95%] mx-auto mb-10 relative z-50">
+              <header className="w-full max-w-[95%] mx-auto mb-10 relative z-50 print:hidden">
                 {/* Thanh công cụ trên mobile: nằm trên tiêu đề theo dòng chảy bình thường, không đè lên chữ */}
                 <div className="flex md:hidden items-center justify-between gap-2 mb-4">
                   <Link
@@ -302,7 +331,7 @@ function App() {
                       {myMember ? myMember.name : 'Bạn là ai?'}
                     </button>
                     {user ? (
-                      <button onClick={() => { logout(); window.location.reload(); }} className="flex-shrink-0 text-xs bg-wood hover:bg-wood-dark text-white px-2.5 py-1.5 rounded-full transition-colors shadow-sm font-medium">
+                      <button onClick={handleLogout} className="flex-shrink-0 text-xs bg-wood hover:bg-wood-dark text-white px-2.5 py-1.5 rounded-full transition-colors shadow-sm font-medium">
                         Đăng xuất
                       </button>
                     ) : (
@@ -337,7 +366,7 @@ function App() {
                   {user ? (
                     <div className="flex items-center gap-4 bg-white/50 px-4 py-2 rounded-lg shadow-sm backdrop-blur-sm border border-wood/20">
                       <span className="text-sm font-medium text-wood-dark">Xin chào, <span className="text-burgundy font-bold">{user.username}</span></span>
-                      <button onClick={() => { logout(); window.location.reload(); }} className="text-sm bg-wood hover:bg-wood-dark text-white px-4 py-2 rounded transition-colors shadow-sm font-medium">Đăng xuất</button>
+                      <button onClick={handleLogout} className="text-sm bg-wood hover:bg-wood-dark text-white px-4 py-2 rounded transition-colors shadow-sm font-medium">Đăng xuất</button>
                     </div>
                   ) : (
                     <button
@@ -397,6 +426,7 @@ function App() {
                       onAddSpouse={openAddSpouse}
                       onAddChild={openAddChild}
                       onMarkDeceased={openMarkDeceased}
+                      onSetRootGeneration={openSetRootGeneration}
                       onAddRoot={() => setRootModalOpen(true)}
                       isAdmin={isAdmin}
                       myMemberId={myMemberId}
@@ -440,11 +470,19 @@ function App() {
                     />
                   </div>
                 } />
+
+                <Route path="stats" element={<StatsPage members={members} />} />
+
+                <Route path="admin" element={
+                  isAdmin ? (
+                    <AdminPanel members={members} onDataChanged={() => { fetchMembers(); fetchEventsData(); }} />
+                  ) : <Navigate to="/" replace />
+                } />
               </Routes>
             </main>
 
             {!isTreeView && (
-              <footer className="mt-16 text-center text-sm text-wood/60 pb-8">
+              <footer className="mt-16 text-center text-sm text-wood/60 pb-8 print:hidden">
                 &copy; {new Date().getFullYear()} Hệ thống Quản lý Gia phả Số
               </footer>
             )}
@@ -496,6 +534,13 @@ function App() {
             onClose={() => setDeceasedModalOpen(false)}
             onSave={handleMarkDeceased}
             targetMember={selectedMember}
+          />
+          <SetRootGenerationModal
+            isOpen={isGenerationModalOpen}
+            onClose={() => setGenerationModalOpen(false)}
+            onSave={handleSetRootGeneration}
+            targetMember={selectedMember}
+            memberCount={members.length}
           />
         </>
       )}

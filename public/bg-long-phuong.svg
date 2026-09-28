@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+  <!-- Hình nền "Long Phượng tranh châu" dạng nét mảnh, dùng làm watermark mờ phía sau cây gia phả. -->
+  <defs>
+    <!-- Mây tường vân -->
+    <g id="cloud" fill="none" stroke="#B87333" stroke-width="3" stroke-linecap="round">
+      <path d="M0,40 C0,15 25,0 45,10 C55,-12 95,-12 105,12 C125,0 150,15 145,40 Z"/>
+      <path d="M45,10 C40,25 55,35 65,28 C72,22 68,12 60,14"/>
+      <path d="M105,12 C112,28 98,38 88,30 C82,24 86,15 94,17"/>
+      <path d="M20,40 C25,55 45,58 55,48"/>
+      <path d="M95,48 C105,58 125,55 130,40"/>
+    </g>
+    <!-- Móng vuốt 3 ngón -->
+    <g id="claw" fill="none" stroke="#B87333" stroke-width="4" stroke-linecap="round">
+      <path d="M0,0 C-10,10 -22,12 -30,6"/>
+      <path d="M0,0 C-6,14 -14,22 -24,24"/>
+      <path d="M0,0 C2,14 -2,24 -10,30"/>
+    </g>
+    <!-- Lông đuôi phượng -->
+    <g id="plumeEye" fill="none" stroke="#B87333" stroke-width="3">
+      <ellipse cx="0" cy="0" rx="16" ry="11"/>
+      <ellipse cx="0" cy="0" rx="7" ry="5" fill="#B87333" fill-opacity="0.35"/>
+    </g>
+  </defs>
+
+  <!-- Mây rải rác -->
+  <use xlink:href="#cloud" transform="translate(90,90) scale(1.2)"/>
+  <use xlink:href="#cloud" transform="translate(700,80) scale(0.9)"/>
+  <use xlink:href="#cloud" transform="translate(1380,70) scale(1.1)"/>
+  <use xlink:href="#cloud" transform="translate(620,560) scale(1.3)"/>
+  <use xlink:href="#cloud" transform="translate(880,760) scale(1)"/>
+  <use xlink:href="#cloud" transform="translate(40,500) scale(0.8)"/>
+  <use xlink:href="#cloud" transform="translate(1430,560) scale(0.85)"/>
+  <use xlink:href="#cloud" transform="translate(470,880) scale(0.9)"/>
+  <use xlink:href="#cloud" transform="translate(1180,900) scale(0.8)"/>
+
+  <!-- ===== RỒNG (bên trái) ===== -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Thân rồng: ống 2 viền -->
+    <path id="dragonBody" d="M560,335 C480,245 350,255 325,360 C300,465 430,515 385,620 C340,725 195,700 160,800 C130,885 185,950 255,930"
+          stroke="#B87333" stroke-width="40"/>
+    <path d="M560,335 C480,245 350,255 325,360 C300,465 430,515 385,620 C340,725 195,700 160,800 C130,885 185,950 255,930"
+          stroke="#FBF7F0" stroke-width="32"/>
+    <!-- Vảy -->
+    <path d="M560,335 C480,245 350,255 325,360 C300,465 430,515 385,620 C340,725 195,700 160,800 C130,885 185,950 255,930"
+          stroke="#B87333" stroke-width="22" stroke-dasharray="3 11" stroke-opacity="0.8"/>
+    <path d="M560,335 C480,245 350,255 325,360 C300,465 430,515 385,620 C340,725 195,700 160,800 C130,885 185,950 255,930"
+          stroke="#B87333" stroke-width="2" stroke-dasharray="14 6" stroke-dashoffset="7"/>
+    <!-- Vây lưng -->
+    <path d="M520,272 l10,-22 l6,26 M470,250 l6,-24 l10,24 M415,250 l0,-24 l14,20 M365,270 l-8,-22 l18,14 M330,310 l-18,-14 l22,4
+             M300,410 l-24,-2 l20,-12 M330,470 l-20,10 l10,-20 M395,500 l6,-22 l6,22 M430,570 l22,-8 l-10,20 M405,660 l20,8 l-22,6
+             M330,700 l4,24 l-18,-14 M250,705 l-2,-24 l-14,20 M180,745 l-20,-12 l22,0 M140,830 l-24,4 l18,-16 M150,900 l-20,14 l8,-22"
+          stroke="#B87333" stroke-width="3"/>
+    <!-- Đuôi lửa -->
+    <path d="M255,930 C290,915 320,930 330,960 M255,930 C300,900 340,905 360,925 M255,930 C285,950 290,975 280,995"
+          stroke="#B87333" stroke-width="4"/>
+    <!-- Chân + vuốt -->
+    <path d="M330,410 C300,430 270,425 250,440" stroke="#B87333" stroke-width="10"/>
+    <use xlink:href="#claw" transform="translate(250,440) rotate(10)"/>
+    <path d="M410,560 C450,575 470,600 500,605" stroke="#B87333" stroke-width="10"/>
+    <use xlink:href="#claw" transform="translate(500,605) scale(-1,1) rotate(-20)"/>
+    <path d="M240,715 C220,690 190,690 170,670" stroke="#B87333" stroke-width="10"/>
+    <use xlink:href="#claw" transform="translate(170,670) rotate(60)"/>
+    <path d="M160,860 C125,865 105,885 90,880" stroke="#B87333" stroke-width="10"/>
+    <use xlink:href="#claw" transform="translate(90,880) rotate(-10)"/>
+    <!-- Đầu rồng -->
+    <path d="M548,300 C585,280 630,284 662,302 L700,296 C690,318 676,330 655,337 C636,356 592,362 556,352 C540,340 538,315 548,300 Z"
+          stroke="#B87333" stroke-width="4" fill="#FBF7F0"/>
+    <path d="M600,345 C630,352 665,346 690,330" stroke="#B87333" stroke-width="3"/>
+    <circle cx="612" cy="310" r="7" stroke="#B87333" stroke-width="3"/>
+    <circle cx="612" cy="310" r="2.5" fill="#B87333"/>
+    <path d="M595,298 C605,288 622,288 632,296" stroke="#B87333" stroke-width="3"/>
+    <!-- Sừng -->
+    <path d="M575,294 C562,255 582,232 615,228 M592,292 C592,262 612,246 642,246" stroke="#B87333" stroke-width="5"/>
+    <!-- Râu -->
+    <path d="M688,305 C740,290 770,300 790,268 C800,252 790,238 778,244" stroke="#B87333" stroke-width="3"/>
+    <path d="M672,332 C715,350 735,390 718,425 C710,440 694,438 694,426" stroke="#B87333" stroke-width="3"/>
+    <!-- Bờm -->
+    <path d="M556,305 C530,290 520,300 505,285 M552,322 C525,320 512,335 495,325 M556,342 C535,352 530,370 510,372"
+          stroke="#B87333" stroke-width="3"/>
+  </g>
+
+  <!-- ===== NGỌC CHÂU (ở giữa) ===== -->
+  <g fill="none" stroke="#B87333" stroke-linecap="round">
+    <circle cx="800" cy="320" r="26" stroke-width="4"/>
+    <path d="M800,320 m-12,0 a12,12 0 1,1 12,12 a6,6 0 1,1 -6,-6" stroke-width="3"/>
+    <path d="M800,280 C790,262 805,250 800,236 M835,295 C850,285 848,270 862,262 M765,295 C750,285 752,270 738,262
+             M840,330 C858,334 866,348 880,346 M760,330 C742,334 734,348 720,346" stroke-width="3"/>
+  </g>
+
+  <!-- ===== PHƯỢNG (bên phải) ===== -->
+  <g fill="none" stroke="#B87333" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Đuôi dài uốn lượn -->
+    <path d="M1170,420 C1230,520 1180,620 1260,700 C1330,770 1420,740 1450,820" stroke-width="4"/>
+    <path d="M1180,415 C1270,500 1260,600 1350,650 C1430,695 1500,650 1540,720" stroke-width="4"/>
+    <path d="M1160,425 C1180,540 1110,640 1150,740 C1180,815 1260,830 1270,900" stroke-width="4"/>
+    <path d="M1190,410 C1300,460 1340,540 1430,560 C1490,573 1530,540 1570,570" stroke-width="3"/>
+    <path d="M1150,430 C1130,530 1040,600 1040,700 C1040,770 1090,800 1080,860" stroke-width="3"/>
+    <use xlink:href="#plumeEye" transform="translate(1450,820) rotate(40)"/>
+    <use xlink:href="#plumeEye" transform="translate(1540,720) rotate(20)"/>
+    <use xlink:href="#plumeEye" transform="translate(1270,900) rotate(70)"/>
+    <use xlink:href="#plumeEye" transform="translate(1570,570) rotate(10)"/>
+    <use xlink:href="#plumeEye" transform="translate(1080,860) rotate(95)"/>
+    <!-- Tơ lông dọc đuôi -->
+    <path d="M1230,560 l-18,10 M1235,600 l-20,6 M1300,690 l-10,18 M1330,610 l-6,20 M1390,650 l-4,20 M1320,510 l14,-14 M1390,555 l8,-18
+             M1130,600 l-20,-4 M1120,660 l-20,2 M1180,770 l-18,10 M1070,650 l-20,-6 M1045,730 l-18,4" stroke-width="2.5"/>
+    <!-- Thân -->
+    <path d="M1100,330 C1130,320 1175,340 1195,385 C1205,410 1190,430 1165,428 C1130,425 1110,395 1100,360 Z" stroke-width="4" fill="#FBF7F0"/>
+    <path d="M1120,360 C1135,370 1150,372 1165,368 M1128,385 C1142,395 1158,398 1175,394 M1140,408 C1152,414 1165,415 1178,412" stroke-width="2.5"/>
+    <!-- Cánh xòe -->
+    <path d="M1150,340 C1170,260 1230,190 1330,150 C1310,190 1320,200 1360,190 C1330,230 1340,245 1385,240 C1340,280 1330,300 1365,315 C1300,330 1240,340 1190,370"
+          stroke-width="4" fill="#FBF7F0"/>
+    <path d="M1175,330 C1210,280 1260,230 1330,150 M1185,345 C1240,300 1300,250 1360,190 M1195,358 C1260,320 1320,280 1385,240 M1200,368 C1260,350 1310,330 1365,315"
+          stroke-width="2"/>
+    <path d="M1160,330 C1150,280 1120,240 1080,215 C1100,250 1095,262 1070,262 C1100,285 1100,300 1080,310 C1110,320 1130,330 1140,345"
+          stroke-width="3"/>
+    <!-- Cổ + đầu -->
+    <path d="M1105,340 C1080,320 1070,290 1060,272" stroke-width="6"/>
+    <path d="M1058,272 C1045,262 1040,248 1050,238 C1062,228 1078,236 1080,250 C1082,262 1072,272 1058,272 Z" stroke-width="3.5" fill="#FBF7F0"/>
+    <circle cx="1057" cy="249" r="3" fill="#B87333"/>
+    <!-- Mỏ -->
+    <path d="M1046,244 L1018,254 L1046,256" stroke-width="3.5"/>
+    <!-- Mào -->
+    <path d="M1064,232 C1060,210 1070,195 1088,192 C1080,205 1084,212 1094,212 M1072,236 C1080,218 1098,212 1112,220 M1052,236 C1040,220 1044,205 1056,198"
+          stroke-width="3"/>
+    <!-- Lông cổ rủ -->
+    <path d="M1072,272 C1080,290 1072,305 1060,312 M1082,262 C1098,278 1096,300 1086,310" stroke-width="2.5"/>
+  </g>
+
+  <!-- Viền hoa văn góc (vân hồi) -->
+  <g fill="none" stroke="#B87333" stroke-width="3" stroke-linecap="square">
+    <path d="M20,120 V20 H120 M40,120 V40 H120 M40,80 H80 V40"/>
+    <path d="M1580,120 V20 H1480 M1560,120 V40 H1480 M1560,80 H1520 V40"/>
+    <path d="M20,880 V980 H120 M40,880 V960 H120 M40,920 H80 V960"/>
+    <path d="M1580,880 V980 H1480 M1560,880 V960 H1480 M1560,920 H1520 V960"/>
+  </g>
+</svg>
